@@ -1,0 +1,26 @@
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+xcshareddata/WorkspaceSettings.xcsettings
+.swiftpm/
+
+# XcodeGen — project is regenerated from project.yml
+WhispIt.xcodeproj/
+
+# macOS
+.DS_Store
+
+# iOS build artifacts
+*.ipa
+*.xcarchive
+*.dSYM.zip
+*.dSYM

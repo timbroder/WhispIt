@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "WhispIt",
+  "project_id": "5b7a41df-6796-4a92-a6eb-2f06f6a1abcb"
+}
