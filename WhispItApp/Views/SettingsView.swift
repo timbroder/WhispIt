@@ -21,7 +21,7 @@ struct SettingsView: View {
                     Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—")
                         .foregroundStyle(.secondary)
                 }
-                Link(destination: URL(string: "https://example.invalid/whispit-privacy")!) {
+                Link(destination: URL(string: "https://github.com/timbroder/WhispIt/blob/main/docs/privacy.md")!) {
                     Label("Privacy Policy", systemImage: "hand.raised")
                 }
             }
