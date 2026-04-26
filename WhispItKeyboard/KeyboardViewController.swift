@@ -80,9 +80,11 @@ final class KeyboardViewController: UIInputViewController {
         }
         IPCManager.shared.observe(WhispItConstants.DarwinNotification.recordingFailed) { [weak self] in
             DispatchQueue.main.async {
-                self?.state.processing = false
-                self?.refreshSharedState()
+                guard let self else { return }
+                self.state.processing = false
+                self.refreshSharedState()
                 Haptics.error()
+                self.scheduleErrorClear()
             }
         }
     }
@@ -102,6 +104,12 @@ final class KeyboardViewController: UIInputViewController {
         textDocumentProxy.insertText(cleaned)
         state.interimTranscript = ""
         Haptics.success()
+    }
+
+    private func scheduleErrorClear() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            self?.state.lastError = nil
+        }
     }
 
     deinit {

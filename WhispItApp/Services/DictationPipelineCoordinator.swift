@@ -108,6 +108,12 @@ final class DictationPipelineCoordinator {
         do {
             let raw = try await transcription.transcribe(prompt: prompt)
 
+            guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                writeError("No speech detected")
+                IPCManager.shared.post(WhispItConstants.DarwinNotification.recordingFailed)
+                return
+            }
+
             let cleaned: String
             if cleanup.isAvailable {
                 do {
