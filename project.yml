@@ -9,6 +9,11 @@ options:
   generateEmptyDirectories: true
   xcodeVersion: "26.3"
 
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    from: "0.9.4"
+
 settings:
   base:
     DEVELOPMENT_TEAM: LTU7433MF2
@@ -39,6 +44,8 @@ targets:
         ENABLE_PREVIEWS: YES
     dependencies:
       - target: WhispItKeyboard
+      - package: WhisperKit
+        product: WhisperKit
     scheme:
       testTargets: []
       gatherCoverageData: false
