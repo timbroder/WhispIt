@@ -22,7 +22,7 @@ final class BackgroundAudioSessionManager {
         try session.setCategory(
             .playAndRecord,
             mode: .default,
-            options: [.mixWithOthers, .allowBluetooth, .defaultToSpeaker]
+            options: [.mixWithOthers, .allowBluetoothHFP, .defaultToSpeaker]
         )
         try session.setActive(true, options: [])
 
