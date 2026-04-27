@@ -5,6 +5,7 @@ import SwiftUI
 final class KeyboardState: ObservableObject {
     @Published var recordingActive: Bool = false
     @Published var processing: Bool = false
+    @Published var showDone: Bool = false
     @Published var interimTranscript: String = ""
     @Published var lastError: String?
     @Published var isShiftActive: Bool = false

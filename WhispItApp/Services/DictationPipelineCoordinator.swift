@@ -16,6 +16,7 @@ final class DictationPipelineCoordinator {
     private var vad = VoiceActivityDetector()
     private var consumerTask: Task<Void, Never>?
     private var isRecording = false
+    private var isFinalizing = false
     private var didStartObserving = false
 
     private init() {}
@@ -43,11 +44,16 @@ final class DictationPipelineCoordinator {
         interruption.onInterruptionEnded = { [weak self] _ in
             try? self?.backgroundSession.start()
         }
+        interruption.onRouteChanged = { [weak self] reason in
+            if reason == .oldDeviceUnavailable {
+                self?.queue.async { self?.handleInterruption() }
+            }
+        }
         interruption.start()
     }
 
     private func handleStartRequested() {
-        guard !isRecording else { return }
+        guard !isRecording, !isFinalizing else { return }
         guard transcription.isModelLoaded else {
             writeError("WhisperKit model not loaded")
             return
@@ -84,11 +90,15 @@ final class DictationPipelineCoordinator {
     private func handleStopRequested() {
         guard isRecording else { return }
         isRecording = false
+        isFinalizing = true
         audioCapture.stop()
         consumerTask?.cancel()
         consumerTask = nil
 
-        Task { await self.finalize() }
+        Task {
+            await self.finalize()
+            self.queue.async { self.isFinalizing = false }
+        }
     }
 
     private func handleInterruption() {

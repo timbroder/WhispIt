@@ -22,6 +22,7 @@ final class KeyboardViewController: UIInputViewController {
         )
 
         let hosting = UIHostingController(rootView: view)
+        hosting.sizingOptions = .intrinsicContentSize
         hosting.view.translatesAutoresizingMaskIntoConstraints = false
         hosting.view.backgroundColor = .clear
         addChild(hosting)
@@ -103,7 +104,11 @@ final class KeyboardViewController: UIInputViewController {
         }
         textDocumentProxy.insertText(cleaned)
         state.interimTranscript = ""
+        state.showDone = true
         Haptics.success()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            self?.state.showDone = false
+        }
     }
 
     private func scheduleErrorClear() {

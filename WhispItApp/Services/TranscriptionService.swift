@@ -37,12 +37,16 @@ final class TranscriptionService {
         samplesLock.unlock()
     }
 
+    private func snapshotSamples() -> [Float] {
+        samplesLock.lock()
+        defer { samplesLock.unlock() }
+        return samples
+    }
+
     func transcribe(prompt: String? = nil) async throws -> String {
         guard let whisperKit else { throw TranscriptionError.modelNotLoaded }
 
-        samplesLock.lock()
-        let snapshot = samples
-        samplesLock.unlock()
+        let snapshot = snapshotSamples()
         guard !snapshot.isEmpty else { return "" }
 
         var options = DecodingOptions()
