@@ -23,7 +23,7 @@ final class OnboardingUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Download Speech Model"].waitForExistence(timeout: 5))
     }
 
-    /// H9: denying the microphone must leave the user a way forward.
+    /// Regression (H9): denying the microphone must leave the user a way forward.
     func testDenyingMicrophoneOffersAWayToSettings() {
         let app = XCUIApplication.fresh()
         app.resetAuthorizationStatus(for: .microphone)
@@ -32,9 +32,8 @@ final class OnboardingUITests: XCTestCase {
         app.buttons["Allow Microphone"].tap()
         XCTAssertTrue(Springboard.tapAlertButton("Don’t Allow") || Springboard.tapAlertButton("Don't Allow"))
         XCTAssertTrue(app.staticTexts["Microphone Access"].waitForExistence(timeout: 3), "should stay on the step")
-        XCTExpectFailure("H9: denied microphone leaves no path to Settings") {
-            XCTAssertTrue(app.buttons["Open Settings"].waitForExistence(timeout: 2))
-        }
+        XCTAssertTrue(app.buttons["Open Settings"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Allow Microphone"].exists, "the dead-end button is replaced")
     }
 
     /// The whole flow with a small model: download → Apple Intelligence →
@@ -66,6 +65,10 @@ final class OnboardingUITests: XCTestCase {
         app.buttons["Continue"].tap()
 
         XCTAssertTrue(app.staticTexts["Add the Keyboard"].waitForExistence(timeout: 5))
+        // Regression (U2): iOS 26+ enables keyboards under Settings → Apps →
+        // WhispIt → Keyboards; "Add New Keyboard" no longer lists them.
+        XCTAssertTrue(app.staticTexts["Tap Keyboards and turn on WhispIt"].exists)
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Add New Keyboard'")).firstMatch.exists)
         app.scrollTo(app.buttons["I've Added the Keyboard"])
         app.buttons["I've Added the Keyboard"].tap()
 

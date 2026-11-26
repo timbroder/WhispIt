@@ -17,6 +17,8 @@ final class AppLifecycle: ObservableObject {
     @Published var modelDownloadProgress: Double = 0
     @Published var isDownloadingModel: Bool = false
     @Published var microphoneAuthorized: Bool
+    /// The user said no; the system won't prompt again, only Settings can fix it.
+    @Published var microphoneDenied: Bool
 
     nonisolated static let onboardingDoneKey = "WhispIt.hasCompletedOnboarding"
 
@@ -31,6 +33,13 @@ final class AppLifecycle: ObservableObject {
         hasCompletedOnboarding = UserDefaults.standard.bool(forKey: Self.onboardingDoneKey)
         ModelDownloadService.excludeExistingModelsFromBackup()
         microphoneAuthorized = AVAudioApplication.shared.recordPermission == .granted
+        microphoneDenied = AVAudioApplication.shared.recordPermission == .denied
+    }
+
+    func refreshMicrophonePermission() {
+        let permission = AVAudioApplication.shared.recordPermission
+        microphoneAuthorized = permission == .granted
+        microphoneDenied = permission == .denied
     }
 
     var hasModelDownloaded: Bool { modelDownload.storedModelURL != nil }
@@ -46,6 +55,7 @@ final class AppLifecycle: ObservableObject {
         }
         let granted = await AVAudioApplication.requestRecordPermission()
         microphoneAuthorized = granted
+        microphoneDenied = !granted
         return granted
     }
 
@@ -65,7 +75,8 @@ final class AppLifecycle: ObservableObject {
             await loadModel(at: url)
         } catch {
             isDownloadingModel = false
-            bootstrap = .failed(String(describing: error))
+            PipelineLog.logger.error("Model download failed: \(String(describing: error), privacy: .public)")
+            bootstrap = .failed(Self.userMessage(forDownloadError: error))
         }
     }
 
@@ -86,8 +97,20 @@ final class AppLifecycle: ObservableObject {
             coordinator.startObserving()
             bootstrap = .ready
         } catch {
-            bootstrap = .failed(String(describing: error))
+            PipelineLog.logger.error("Model load failed: \(String(describing: error), privacy: .public)")
+            bootstrap = .failed("The speech model couldn't be loaded. Try restarting WhispIt; if it keeps failing, reinstall to download it again.")
         }
+    }
+
+    nonisolated static func userMessage(forDownloadError error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            return "The download didn't finish. Check your internet connection and tap Retry."
+        }
+        if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileWriteOutOfSpaceError {
+            return "There isn't enough free space. WhispIt needs about 1.5 GB for the speech model."
+        }
+        return "The speech model couldn't be downloaded. Tap Retry to try again."
     }
 
     func completeOnboarding() {
