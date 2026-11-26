@@ -145,10 +145,11 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
         audioCapture.stop()
         consumerTask?.cancel()
         consumerTask = nil
-        PipelineLog.logger.info("Recording stopped; finalizing")
+        let heardVoice = vad.heardVoice
+        PipelineLog.logger.info("Recording stopped; finalizing (heardVoice=\(heardVoice))")
 
         Task {
-            await self.finalize()
+            await self.finalize(heardVoice: heardVoice)
             self.queue.async { self.isFinalizing = false }
         }
     }
@@ -164,7 +165,12 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
         ipc.post(WhispItConstants.DarwinNotification.recordingFailed)
     }
 
-    private func finalize() async {
+    /// Transcripts this short from a recording in which the VAD never heard
+    /// speech are almost always Whisper hallucinations ("Thank you.", "you").
+    /// Longer text is kept: a soft speaker may never cross the VAD threshold.
+    static let maxHallucinationWords = 3
+
+    private func finalize(heardVoice: Bool) async {
         let clock = ContinuousClock()
         let started = clock.now
         let signpostID = PipelineLog.signposter.makeSignpostID()
@@ -178,8 +184,10 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
             let raw = try await transcription.transcribe(prompt: prompt)
             let transcribed = clock.now
 
-            guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                PipelineLog.logger.notice("No speech detected")
+            let wordCount = raw.split(whereSeparator: \.isWhitespace).count
+            let likelyHallucination = !heardVoice && wordCount <= Self.maxHallucinationWords
+            guard wordCount > 0, !likelyHallucination else {
+                PipelineLog.logger.notice("No speech detected (words=\(wordCount), heardVoice=\(heardVoice))")
                 writeError("No speech detected")
                 ipc.post(WhispItConstants.DarwinNotification.recordingFailed)
                 return

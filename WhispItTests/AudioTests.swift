@@ -68,6 +68,17 @@ struct VoiceActivityDetectorTests {
         #expect(fired() == 1)
     }
 
+    @Test func remembersWhetherItHeardSpeech() {
+        let (detector, _) = makeDetector()
+        detector.feed(quiet)
+        #expect(!detector.heardVoice)
+        detector.feed(speech)
+        detector.feed(quiet)
+        #expect(detector.heardVoice)
+        detector.reset()
+        #expect(!detector.heardVoice)
+    }
+
     @Test func intermittentSpeechKeepsRecording() {
         let (detector, fired) = makeDetector()
         for _ in 0..<20 {

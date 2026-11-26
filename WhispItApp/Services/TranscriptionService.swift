@@ -62,9 +62,34 @@ final class TranscriptionService {
         }
 
         let results = try await whisperKit.transcribe(audioArray: snapshot, decodeOptions: options)
-        return results
-            .map(\.text)
-            .joined(separator: " ")
+        return Self.removingNonSpeechMarkers(results.map(\.text).joined(separator: " "))
+    }
+
+    private static let parenthesized = try! NSRegularExpression(pattern: #"\(([^)]*)\)"#)
+
+    private static let nonSpeechWords: [String] = [
+        "blank_audio", "blank audio", "silence", "music", "applause", "laughter",
+        "laughs", "inaudible", "noise", "no speech",
+    ]
+
+    /// Strips the annotations Whisper emits for non-speech audio, such as
+    /// "[BLANK_AUDIO]", "[ Silence ]" or "(music)", and tidies whitespace.
+    /// Square-bracket spans are always annotations in dictation; parentheses
+    /// are removed only when they contain a known non-speech word.
+    static func removingNonSpeechMarkers(_ text: String) -> String {
+        var result = text.replacingOccurrences(of: #"\[[^\]]*\]"#, with: " ", options: .regularExpression)
+        let whole = NSRange(result.startIndex..., in: result)
+        // Back to front so earlier ranges stay valid while replacing.
+        for match in parenthesized.matches(in: result, range: whole).reversed() {
+            guard let inner = Range(match.range(at: 1), in: result),
+                  let full = Range(match.range, in: result) else { continue }
+            let content = result[inner].lowercased()
+            if nonSpeechWords.contains(where: { content.contains($0) }) {
+                result.replaceSubrange(full, with: " ")
+            }
+        }
+        return result
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
