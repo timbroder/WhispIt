@@ -1,6 +1,16 @@
 import Foundation
 
-final class IPCManager {
+/// The slice of `IPCManager` the dictation pipeline depends on. Lets tests
+/// capture posts and writes instead of touching Darwin notifications and the
+/// App Group container.
+protocol IPCChannel: AnyObject {
+    func post(_ name: CFString)
+    func observe(_ name: CFString, handler: @escaping () -> Void)
+    func write<T: Encodable>(_ value: T, to file: WhispItConstants.SharedFile) throws
+    func writeText(_ text: String, to file: WhispItConstants.SharedFile) throws
+}
+
+final class IPCManager: IPCChannel {
     static let shared = IPCManager()
 
     enum IPCError: Error {

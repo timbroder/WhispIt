@@ -9,9 +9,14 @@ final class VoiceActivityDetector {
 
     private var lastVoiceTimestamp: Date?
     private var hasFired = false
+    private let now: () -> Date
 
-    init(silenceTimeout: TimeInterval = SettingsManager.shared.silenceTimeoutSeconds) {
+    init(
+        silenceTimeout: TimeInterval = SettingsManager.shared.silenceTimeoutSeconds,
+        now: @escaping () -> Date = Date.init
+    ) {
         self.silenceTimeout = silenceTimeout
+        self.now = now
     }
 
     func reset() {
@@ -21,7 +26,7 @@ final class VoiceActivityDetector {
 
     func feed(_ buffer: AVAudioPCMBuffer) {
         let level = Self.rms(of: buffer)
-        let now = Date()
+        let now = now()
 
         if level >= silenceThreshold {
             lastVoiceTimestamp = now

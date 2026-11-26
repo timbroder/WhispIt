@@ -52,13 +52,32 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
-_Add your build and test commands here_
+`WhispIt.xcodeproj` is generated from `project.yml` (and gitignored). Regenerate after adding/removing files:
 
 ```bash
-# Example:
-# npm install
-# npm test
+xcodegen generate
 ```
+
+Tests (scheme `WhispItApp`, pick any iOS 26+ simulator):
+
+```bash
+# Unit tests: hermetic, fast, run in CI
+xcodebuild test -project WhispIt.xcodeproj -scheme WhispItApp \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -only-testing:WhispItTests
+
+# UI tests (XCUITest), run in CI
+xcodebuild test -project WhispIt.xcodeproj -scheme WhispItApp \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -only-testing:WhispItUITests
+
+# Integration tests: local only. Download a WhisperKit model and need Apple Intelligence enabled on the Mac.
+xcodebuild test -project WhispIt.xcodeproj -scheme WhispItApp \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -only-testing:WhispItIntegrationTests
+```
+
+- Tests that reproduce a known, unfixed bug are wrapped in `withKnownIssue("<ID>: …")`. A fix PR removes the wrapper.
+- Speech fixtures live in `WhispItIntegrationTests/Fixtures`; regenerate them with `Scripts/make-audio-fixtures.sh`.
+- Debug-only launch arguments (see `WhispItApp/Services/Debug/DebugOverrides.swift`): `-WhispItAudioFixture <name>` feeds a WAV from `<App Group>/Fixtures/` instead of the mic, `-WhispItModelVariant openai_whisper-tiny` downloads a small model, and `-WhispItResetState` wipes onboarding and dictionary state.
+- Pipeline logs (no transcript text) use the subsystem `com.whispit.app`: `xcrun simctl spawn booted log stream --predicate 'subsystem == "com.whispit.app"'`.
 
 ## Architecture Overview
 

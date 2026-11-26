@@ -11,20 +11,44 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
 
     private let queue = DispatchQueue(label: "com.whispit.pipeline")
 
-    private let audioCapture = AudioCaptureService()
-    private let transcription = TranscriptionService()
-    private let cleanup = CleanupService()
-    private let learning = DictionaryLearningService()
-    private let interruption = AudioInterruptionHandler()
-    private let backgroundSession = BackgroundAudioSessionManager.shared
+    private let audioCapture: AudioCaptureService
+    private let transcription: Transcribing
+    private let cleanup: TextCleaning
+    private let dictionary: DictionaryManager
+    private let learning: DictionaryLearningService
+    private let interruption: AudioInterruptionHandler
+    private let backgroundSession: KeepAliveSession
+    private let ipc: IPCChannel
+    private let makeDetector: () -> VoiceActivityDetector
 
-    private var vad = VoiceActivityDetector()
+    private var vad: VoiceActivityDetector
     private var consumerTask: Task<Void, Never>?
     private var isRecording = false
     private var isFinalizing = false
     private var didStartObserving = false
 
-    private init() {}
+    init(
+        audioCapture: AudioCaptureService = AudioCaptureService(),
+        transcription: Transcribing = TranscriptionService(),
+        cleanup: TextCleaning = CleanupService(),
+        dictionary: DictionaryManager = .shared,
+        learning: DictionaryLearningService? = nil,
+        interruption: AudioInterruptionHandler = AudioInterruptionHandler(),
+        backgroundSession: KeepAliveSession = BackgroundAudioSessionManager.shared,
+        ipc: IPCChannel = IPCManager.shared,
+        makeDetector: @escaping () -> VoiceActivityDetector = { VoiceActivityDetector() }
+    ) {
+        self.audioCapture = audioCapture
+        self.transcription = transcription
+        self.cleanup = cleanup
+        self.dictionary = dictionary
+        self.learning = learning ?? DictionaryLearningService(dictionary: dictionary)
+        self.interruption = interruption
+        self.backgroundSession = backgroundSession
+        self.ipc = ipc
+        self.makeDetector = makeDetector
+        self.vad = makeDetector()
+    }
 
     var isModelLoaded: Bool { transcription.isModelLoaded }
 
@@ -36,10 +60,10 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
         guard !didStartObserving else { return }
         didStartObserving = true
 
-        IPCManager.shared.observe(WhispItConstants.DarwinNotification.recordingStartRequested) { [weak self] in
+        ipc.observe(WhispItConstants.DarwinNotification.recordingStartRequested) { [weak self] in
             self?.queue.async { self?.handleStartRequested() }
         }
-        IPCManager.shared.observe(WhispItConstants.DarwinNotification.recordingStopRequested) { [weak self] in
+        ipc.observe(WhispItConstants.DarwinNotification.recordingStopRequested) { [weak self] in
             self?.queue.async { self?.handleStopRequested() }
         }
 
@@ -57,9 +81,19 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
         interruption.start()
     }
 
+    /// Blocks until all work already queued on the pipeline queue has run.
+    /// Test hook; does not wait for an in-flight `finalize()`.
+    func drainQueue() {
+        queue.sync {}
+    }
+
     private func handleStartRequested() {
-        guard !isRecording, !isFinalizing else { return }
+        guard !isRecording, !isFinalizing else {
+            PipelineLog.logger.info("Start ignored (recording=\(self.isRecording), finalizing=\(self.isFinalizing))")
+            return
+        }
         guard transcription.isModelLoaded else {
+            PipelineLog.logger.error("Start rejected: model not loaded")
             writeError("WhisperKit model not loaded")
             return
         }
@@ -67,17 +101,19 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
         isRecording = true
         transcription.reset()
 
-        let detector = VoiceActivityDetector()
+        let detector = makeDetector()
         detector.onSilenceTimeout = { [weak self] in
+            PipelineLog.logger.info("Silence timeout")
             self?.queue.async { self?.handleStopRequested() }
         }
         vad = detector
 
         let state = SharedState(recordingActive: true)
-        try? IPCManager.shared.write(state, to: .sharedState)
+        try? ipc.write(state, to: .sharedState)
 
         do {
             let stream = try audioCapture.start()
+            PipelineLog.logger.info("Recording started")
             consumerTask = Task { [weak self, detector] in
                 guard let self else { return }
                 for await buffer in stream {
@@ -87,8 +123,9 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
             }
         } catch {
             isRecording = false
+            PipelineLog.logger.error("Audio capture failed: \(String(describing: error), privacy: .public)")
             writeError(String(describing: error))
-            IPCManager.shared.post(WhispItConstants.DarwinNotification.recordingFailed)
+            ipc.post(WhispItConstants.DarwinNotification.recordingFailed)
         }
     }
 
@@ -99,6 +136,7 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
         audioCapture.stop()
         consumerTask?.cancel()
         consumerTask = nil
+        PipelineLog.logger.info("Recording stopped; finalizing")
 
         Task {
             await self.finalize()
@@ -112,44 +150,66 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
         audioCapture.stop()
         consumerTask?.cancel()
         consumerTask = nil
+        PipelineLog.logger.notice("Recording interrupted")
         writeError("Recording interrupted")
-        IPCManager.shared.post(WhispItConstants.DarwinNotification.recordingFailed)
+        ipc.post(WhispItConstants.DarwinNotification.recordingFailed)
     }
 
     private func finalize() async {
-        let entries = DictionaryManager.shared.allEntries
+        let clock = ContinuousClock()
+        let started = clock.now
+        let signpostID = PipelineLog.signposter.makeSignpostID()
+        let interval = PipelineLog.signposter.beginInterval("Finalize", id: signpostID)
+        defer { PipelineLog.signposter.endInterval("Finalize", interval) }
+
+        let entries = dictionary.allEntries
         let prompt = DictionaryPromptBuilder.prompt(from: entries)
 
         do {
             let raw = try await transcription.transcribe(prompt: prompt)
+            let transcribed = clock.now
 
             guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                PipelineLog.logger.notice("No speech detected")
                 writeError("No speech detected")
-                IPCManager.shared.post(WhispItConstants.DarwinNotification.recordingFailed)
+                ipc.post(WhispItConstants.DarwinNotification.recordingFailed)
                 return
             }
 
             let cleaned: String
+            var cleanupOutcome = "skipped"
             if cleanup.isAvailable {
                 do {
                     cleaned = try await cleanup.clean(raw)
+                    cleanupOutcome = "ok"
                 } catch {
                     cleaned = raw
+                    cleanupOutcome = "failed(\(String(describing: error)))"
                 }
             } else {
                 cleaned = raw
             }
+            let cleanedAt = clock.now
 
             learning.observe(cleanedText: cleaned)
 
-            try? IPCManager.shared.writeText(cleaned, to: .cleanedText)
+            try? ipc.writeText(cleaned, to: .cleanedText)
 
             let state = SharedState(recordingActive: false, lastInterimTranscript: "")
-            try? IPCManager.shared.write(state, to: .sharedState)
-            IPCManager.shared.post(WhispItConstants.DarwinNotification.cleanedTextReady)
+            try? ipc.write(state, to: .sharedState)
+            ipc.post(WhispItConstants.DarwinNotification.cleanedTextReady)
+
+            PipelineLog.logger.info("""
+                Finalize done total=\(PipelineLog.milliseconds(clock.now - started))ms \
+                transcribe=\(PipelineLog.milliseconds(transcribed - started))ms \
+                cleanup=\(PipelineLog.milliseconds(cleanedAt - transcribed))ms \
+                cleanupOutcome=\(cleanupOutcome, privacy: .public) \
+                rawChars=\(raw.count) cleanedChars=\(cleaned.count)
+                """)
         } catch {
+            PipelineLog.logger.error("Transcription failed: \(String(describing: error), privacy: .public)")
             writeError(String(describing: error))
-            IPCManager.shared.post(WhispItConstants.DarwinNotification.recordingFailed)
+            ipc.post(WhispItConstants.DarwinNotification.recordingFailed)
         }
     }
 
@@ -159,6 +219,6 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
             lastInterimTranscript: "",
             lastError: message
         )
-        try? IPCManager.shared.write(state, to: .sharedState)
+        try? ipc.write(state, to: .sharedState)
     }
 }

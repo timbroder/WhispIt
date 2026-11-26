@@ -20,7 +20,13 @@ final class DictionaryManager {
         return d
     }()
 
-    private init() {}
+    /// Where entries are persisted. `nil` means the App Group container is
+    /// unavailable (e.g. keyboard without Full Access); entries stay in memory.
+    private let fileURL: URL?
+
+    init(fileURL: URL? = WhispItConstants.sharedFileURL(.dictionary)) {
+        self.fileURL = fileURL
+    }
 
     func reload() {
         lock.lock()
@@ -95,14 +101,14 @@ final class DictionaryManager {
     }
 
     private func loadFromDisk() throws -> [DictionaryEntry] {
-        guard let url = WhispItConstants.sharedFileURL(.dictionary) else { return [] }
+        guard let url = fileURL else { return [] }
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
         let data = try Data(contentsOf: url)
         return try Self.decoder.decode([DictionaryEntry].self, from: data)
     }
 
     private func persistLocked() {
-        guard let url = WhispItConstants.sharedFileURL(.dictionary) else { return }
+        guard let url = fileURL else { return }
         do {
             let data = try Self.encoder.encode(cache)
             try data.write(to: url, options: .atomic)
