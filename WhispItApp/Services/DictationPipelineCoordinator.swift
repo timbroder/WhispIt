@@ -147,6 +147,8 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
         consumerTask = nil
         let heardVoice = vad.heardVoice
         PipelineLog.logger.info("Recording stopped; finalizing (heardVoice=\(heardVoice))")
+        try? ipc.write(SharedState(recordingActive: false), to: .sharedState)
+        ipc.post(WhispItConstants.DarwinNotification.recordingStopped)
 
         Task {
             await self.finalize(heardVoice: heardVoice)

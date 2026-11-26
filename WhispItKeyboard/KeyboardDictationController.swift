@@ -92,6 +92,9 @@ final class KeyboardDictationController {
         ipc.observe(Note.recordingStarted) { [weak self] in
             self?.deliver { self?.handleRecordingStarted() }
         }
+        ipc.observe(Note.recordingStopped) { [weak self] in
+            self?.deliver { self?.handleRecordingStopped() }
+        }
         ipc.observe(Note.cleanedTextReady) { [weak self] in
             self?.deliver { self?.handleCleanedTextReady() }
         }
@@ -107,12 +110,8 @@ final class KeyboardDictationController {
     func micTapped() {
         if state.recordingActive {
             feedback.recordingStopped()
-            state.processing = true
             ipc.post(WhispItConstants.DarwinNotification.recordingStopRequested)
-            processingTimeout?.cancel()
-            processingTimeout = scheduler.after(timing.processingTimeout) { [weak self] in
-                self?.handleProcessingTimeout()
-            }
+            enterProcessing()
         } else {
             feedback.recordingStarted()
             state.lastError = nil
@@ -138,6 +137,22 @@ final class KeyboardDictationController {
         awaitingStart = false
         startTimeout?.cancel()
         refreshFromSharedState()
+    }
+
+    /// The app stopped capturing (after a tap or on silence) and is working
+    /// on the transcript.
+    private func handleRecordingStopped() {
+        guard !state.processing else { return }
+        enterProcessing()
+    }
+
+    private func enterProcessing() {
+        state.recordingActive = false
+        state.processing = true
+        processingTimeout?.cancel()
+        processingTimeout = scheduler.after(timing.processingTimeout) { [weak self] in
+            self?.handleProcessingTimeout()
+        }
     }
 
     private func handleCleanedTextReady() {

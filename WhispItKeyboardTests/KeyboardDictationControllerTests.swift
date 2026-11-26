@@ -97,6 +97,11 @@ struct KeyboardHarness {
         app.appPosts(Note.recordingStarted)
     }
 
+    func appStopsRecording() {
+        app.sharedState = SharedState(recordingActive: false, lastUpdated: clock.now)
+        app.appPosts(Note.recordingStopped)
+    }
+
     func appDelivers(_ text: String) {
         app.cleanedText = text
         app.sharedState = SharedState(recordingActive: false, lastUpdated: clock.now)
@@ -167,6 +172,43 @@ struct KeyboardDictationControllerTests {
         h.appDelivers("Auto stopped.")
         #expect(h.inserted.texts == ["Auto stopped."])
         #expect(!h.state.recordingActive)
+    }
+
+    /// Regression (U4): on silence auto-stop the keyboard used to keep showing
+    /// "Listening…" with a stop button until the result arrived.
+    @Test func autoStopSwitchesToProcessing() {
+        let h = KeyboardHarness()
+        h.controller.micTapped()
+        h.appStartsRecording()
+        h.appStopsRecording()
+        #expect(h.state.processing)
+        #expect(!h.state.recordingActive, "red ring and stop icon go away")
+        h.appDelivers("Done.")
+        #expect(!h.state.processing)
+        #expect(h.inserted.texts == ["Done."])
+    }
+
+    @Test func autoStopProcessingTimesOut() {
+        let h = KeyboardHarness()
+        h.controller.micTapped()
+        h.appStartsRecording()
+        h.appStopsRecording()
+        h.scheduler.advance(46)
+        #expect(!h.state.processing)
+        #expect(h.state.lastError == KeyboardDictationController.processingTimedOutMessage)
+    }
+
+    @Test func tapStopClearsRecordingStateImmediately() {
+        let h = KeyboardHarness()
+        h.controller.micTapped()
+        h.appStartsRecording()
+        h.controller.micTapped()
+        #expect(!h.state.recordingActive)
+        #expect(h.state.processing)
+        // The app's own stop notification doesn't restart anything.
+        h.appStopsRecording()
+        #expect(h.state.processing)
+        #expect(h.app.posted(Note.recordingStopRequested) == 1)
     }
 
     // MARK: App not answering (H4)

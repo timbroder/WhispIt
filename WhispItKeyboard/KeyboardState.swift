@@ -10,6 +10,8 @@ final class KeyboardState: ObservableObject {
     @Published var lastError: String?
     @Published var isShiftActive: Bool = false
     @Published var isCapsLocked: Bool = false
+    /// False on devices where the system already draws a globe key.
+    @Published var showsGlobeKey: Bool = true
 
     func apply(_ shared: SharedState) {
         recordingActive = shared.recordingActive
