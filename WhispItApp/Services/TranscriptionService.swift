@@ -51,7 +51,14 @@ final class TranscriptionService {
 
         var options = DecodingOptions()
         if let prompt, !prompt.isEmpty, let tokenizer = whisperKit.tokenizer {
-            options.promptTokens = tokenizer.encode(text: prompt)
+            options.promptTokens = tokenizer
+                .encode(text: " " + prompt.trimmingCharacters(in: .whitespaces))
+                .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+            // WhisperKit's first-token log-prob check rejects every prompted
+            // decode (the first token after a prompt naturally scores low), so
+            // any dictation with dictionary words came back empty. The average
+            // log-prob and no-speech checks still guard against hallucinations.
+            options.firstTokenLogProbThreshold = nil
         }
 
         let results = try await whisperKit.transcribe(audioArray: snapshot, decodeOptions: options)

@@ -40,7 +40,8 @@ struct TranscriptionIntegrationTests {
         #expect(Transcript.contains(text, "thursday"))
     }
 
-    /// Dictionary words are passed as Whisper's prompt to bias spelling.
+    /// Regression (H12): dictionary words are passed as Whisper's prompt to
+    /// bias spelling; the prompt used to empty the transcript entirely.
     @Test func dictionaryPromptHelpsProperNouns() async throws {
         let names = ["kubernetes", "anthropic", "priyanka"]
         let plain = try await transcribe(.properNouns)
@@ -54,10 +55,8 @@ struct TranscriptionIntegrationTests {
         let biasedHits = names.filter { Transcript.contains(biased, $0) }.count
         print("[proper-nouns] plain=\(plainHits)/3 \"\(plain)\"")
         print("[proper-nouns] biased=\(biasedHits)/3 \"\(biased)\"")
-        withKnownIssue("H12: any dictionary prompt makes WhisperKit return an empty transcript") {
-            #expect(biasedHits >= plainHits)
-            #expect(biasedHits >= 2)
-        }
+        #expect(biasedHits >= plainHits)
+        #expect(biasedHits >= 2)
         #expect(!Transcript.contains(biased, "vocabulary"), "prompt text leaked into the transcript")
     }
 
@@ -75,6 +74,19 @@ struct TranscriptionIntegrationTests {
         let text = try await transcribe(.silence, prompt: prompt)
         print("[silence+prompt] \"\(text)\"")
         #expect(text.isEmpty, "got \"\(text)\"")
+    }
+
+    /// Regression (H12): with a dictionary, ordinary speech still transcribes.
+    @Test(arguments: [Fixture.fillers, .selfCorrection, .longPassage])
+    func dictionaryPromptDoesNotBlankOrdinarySpeech(_ fixture: Fixture) async throws {
+        let prompt = DictionaryPromptBuilder.prompt(from: [
+            DictionaryEntry(word: "Kubernetes", source: .manual),
+            DictionaryEntry(word: "Priyanka", source: .automatic),
+        ])
+        let text = try await transcribe(fixture, prompt: prompt)
+        print("[\(fixture.rawValue)+prompt] \(text.prefix(80))")
+        #expect(Transcript.words(text).count >= 5, "got \"\(text)\"")
+        #expect(!Transcript.contains(text, "kubernetes"), "prompt words leaked into unrelated speech")
     }
 
     @Test func noAudioReturnsEmpty() async throws {
