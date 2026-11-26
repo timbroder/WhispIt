@@ -15,17 +15,19 @@ struct OnboardingView: View {
     }
 
     var body: some View {
-        VStack {
-            switch step {
-            case .welcome: welcomeStep
-            case .microphone: microphoneStep
-            case .modelDownload: modelDownloadStep
-            case .appleIntelligence: appleIntelligenceStep
-            case .keyboardSetup: keyboardSetupStep
+        ScrollIfNeeded {
+            VStack {
+                switch step {
+                case .welcome: welcomeStep
+                case .microphone: microphoneStep
+                case .modelDownload: modelDownloadStep
+                case .appleIntelligence: appleIntelligenceStep
+                case .keyboardSetup: keyboardSetupStep
+                }
             }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var welcomeStep: some View {
