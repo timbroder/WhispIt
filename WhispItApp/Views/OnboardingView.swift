@@ -4,6 +4,7 @@ import UIKit
 
 struct OnboardingView: View {
     @EnvironmentObject var lifecycle: AppLifecycle
+    @Environment(\.scenePhase) private var scenePhase
     @State private var step: Step = .welcome
 
     enum Step: Int {
@@ -27,6 +28,14 @@ struct OnboardingView: View {
             }
             .padding()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Returning from Settings after granting the mic: move on.
+            guard phase == .active else { return }
+            lifecycle.refreshMicrophonePermission()
+            if step == .microphone, lifecycle.microphoneAuthorized {
+                step = .modelDownload
+            }
         }
     }
 
@@ -64,15 +73,33 @@ struct OnboardingView: View {
             Text("WhispIt needs the microphone to hear what you say. Audio is transcribed locally — nothing is uploaded.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
-            Spacer()
-            Button(lifecycle.microphoneAuthorized ? "Continue" : "Allow Microphone") {
-                Task {
-                    let granted = await lifecycle.requestMicrophonePermission()
-                    if granted { step = .modelDownload }
-                }
+            if lifecycle.microphoneDenied {
+                Text("Microphone access is turned off. Turn on Microphone for WhispIt in Settings, then come back.")
+                    .font(.callout)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.orange)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            Spacer()
+            if lifecycle.microphoneDenied {
+                Button("Open Settings") { Self.openAppSettings() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+            } else {
+                Button(lifecycle.microphoneAuthorized ? "Continue" : "Allow Microphone") {
+                    Task {
+                        let granted = await lifecycle.requestMicrophonePermission()
+                        if granted { step = .modelDownload }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            }
+        }
+    }
+
+    static func openAppSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
         }
     }
 
@@ -84,7 +111,7 @@ struct OnboardingView: View {
                 .foregroundStyle(.tint)
             Text("Download Speech Model")
                 .font(.title).bold()
-            Text("WhispIt downloads the WhisperKit speech model once. About 800 MB — make sure you're on Wi-Fi.")
+            Text("WhispIt downloads its speech model once. It's about 1.5 GB, so make sure you're on Wi-Fi.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 
@@ -160,7 +187,20 @@ struct OnboardingView: View {
         case .available:
             return "Apple Intelligence is available. WhispIt will use it to clean up filler words, fix grammar, and add punctuation to your dictation."
         case .unavailable(let reason):
-            return "Apple Intelligence isn't available (\(String(describing: reason))). WhispIt will still transcribe your speech but won't clean it up — enable Apple Intelligence in Settings to get the cleanup pass."
+            return "\(Self.describe(reason)) WhispIt will still transcribe your speech, but won't clean it up."
+        }
+    }
+
+    static func describe(_ reason: SystemLanguageModel.Availability.UnavailableReason) -> String {
+        switch reason {
+        case .deviceNotEligible:
+            return "This iPhone doesn't support Apple Intelligence."
+        case .appleIntelligenceNotEnabled:
+            return "Apple Intelligence is turned off. Turn it on in Settings → Apple Intelligence & Siri."
+        case .modelNotReady:
+            return "Apple Intelligence is still getting ready. This can take a while after it's turned on."
+        @unknown default:
+            return "Apple Intelligence isn't available right now."
         }
     }
 
@@ -173,9 +213,9 @@ struct OnboardingView: View {
             Text("Add the Keyboard")
                 .font(.title).bold()
             VStack(alignment: .leading, spacing: 12) {
-                Label("Open Settings → General → Keyboard → Keyboards", systemImage: "1.circle.fill")
-                Label("Tap \"Add New Keyboard…\" and choose WhispIt", systemImage: "2.circle.fill")
-                Label("Tap WhispIt and turn on Allow Full Access", systemImage: "3.circle.fill")
+                Label("Tap Open Settings below", systemImage: "1.circle.fill")
+                Label("Tap Keyboards and turn on WhispIt", systemImage: "2.circle.fill")
+                Label("Turn on Allow Full Access", systemImage: "3.circle.fill")
             }
             .font(.callout)
             .padding(.horizontal)
@@ -184,11 +224,7 @@ struct OnboardingView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Spacer()
-            Button("Open Settings") {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
-                }
-            }
+            Button("Open Settings") { Self.openAppSettings() }
             .buttonStyle(.bordered)
             Button("I've Added the Keyboard") {
                 lifecycle.completeOnboarding()
