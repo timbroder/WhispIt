@@ -69,11 +69,15 @@ final class AppLifecycle: ObservableObject {
     }
 
     func bootstrapIfReady() async {
+        #if DEBUG
+        if DebugOverrides.skipBootstrap { return }
+        #endif
         guard hasCompletedOnboarding, let url = modelDownload.storedModelURL else { return }
         await loadModel(at: url)
     }
 
     private func loadModel(at url: URL) async {
+        PipelineLog.logger.notice("Loading Whisper model \(url.lastPathComponent, privacy: .public)")
         bootstrap = .loading
         do {
             try await coordinator.loadWhisperModel(at: url)
