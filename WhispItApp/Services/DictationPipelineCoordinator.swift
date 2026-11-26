@@ -88,13 +88,21 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
     }
 
     private func handleStartRequested() {
-        guard !isRecording, !isFinalizing else {
-            PipelineLog.logger.info("Start ignored (recording=\(self.isRecording), finalizing=\(self.isFinalizing))")
+        if isRecording {
+            // The keyboard lost track (e.g. it was reloaded mid-recording).
+            // Tell it again instead of silently ignoring the tap.
+            PipelineLog.logger.info("Start while recording; re-announcing")
+            ipc.post(WhispItConstants.DarwinNotification.recordingStarted)
+            return
+        }
+        guard !isFinalizing else {
+            PipelineLog.logger.info("Start ignored while finalizing")
             return
         }
         guard transcription.isModelLoaded else {
             PipelineLog.logger.error("Start rejected: model not loaded")
-            writeError("WhisperKit model not loaded")
+            writeError("Speech model is still loading. Open WhispIt and try again.")
+            ipc.post(WhispItConstants.DarwinNotification.recordingFailed)
             return
         }
 
@@ -114,6 +122,7 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
         do {
             let stream = try audioCapture.start()
             PipelineLog.logger.info("Recording started")
+            ipc.post(WhispItConstants.DarwinNotification.recordingStarted)
             consumerTask = Task { [weak self, detector] in
                 guard let self else { return }
                 for await buffer in stream {

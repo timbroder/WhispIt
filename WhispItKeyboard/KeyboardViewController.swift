@@ -4,6 +4,12 @@ import UIKit
 final class KeyboardViewController: UIInputViewController {
     private let state = KeyboardState()
     private var hostingController: UIHostingController<KeyboardView>?
+    private lazy var dictation = KeyboardDictationController(
+        state: state,
+        ipc: IPCManager.shared,
+        feedback: HapticFeedback(),
+        insertText: { [weak self] text in self?.textDocumentProxy.insertText(text) }
+    )
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -11,7 +17,7 @@ final class KeyboardViewController: UIInputViewController {
         let view = KeyboardView(
             state: state,
             actions: KeyboardActions(
-                onMicTap: { [weak self] in self?.handleMicTap() },
+                onMicTap: { [weak self] in self?.dictation.micTapped() },
                 onKeyTap: { [weak self] character in self?.insert(character) },
                 onBackspace: { [weak self] in self?.deleteBackward() },
                 onShift: { [weak self] in self?.handleShift() },
@@ -36,20 +42,12 @@ final class KeyboardViewController: UIInputViewController {
         hosting.didMove(toParent: self)
         hostingController = hosting
 
-        observeIPC()
-        refreshSharedState()
+        dictation.activate()
     }
 
-    private func handleMicTap() {
-        state.processing = false
-        if state.recordingActive {
-            Haptics.medium()
-            IPCManager.shared.post(WhispItConstants.DarwinNotification.recordingStopRequested)
-            state.processing = true
-        } else {
-            Haptics.light()
-            IPCManager.shared.post(WhispItConstants.DarwinNotification.recordingStartRequested)
-        }
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        dictation.refreshFromSharedState(ignoringStaleError: true)
     }
 
     private func handleShift() {
@@ -72,52 +70,14 @@ final class KeyboardViewController: UIInputViewController {
         textDocumentProxy.deleteBackward()
     }
 
-    private func observeIPC() {
-        IPCManager.shared.observe(WhispItConstants.DarwinNotification.cleanedTextReady) { [weak self] in
-            DispatchQueue.main.async { self?.handleCleanedTextReady() }
-        }
-        IPCManager.shared.observe(WhispItConstants.DarwinNotification.transcriptionUpdated) { [weak self] in
-            DispatchQueue.main.async { self?.refreshSharedState() }
-        }
-        IPCManager.shared.observe(WhispItConstants.DarwinNotification.recordingFailed) { [weak self] in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.state.processing = false
-                self.refreshSharedState()
-                Haptics.error()
-                self.scheduleErrorClear()
-            }
-        }
-    }
-
-    private func refreshSharedState() {
-        guard let shared = try? IPCManager.shared.read(SharedState.self, from: .sharedState) else {
-            return
-        }
-        state.apply(shared)
-    }
-
-    private func handleCleanedTextReady() {
-        state.processing = false
-        guard let cleaned = try? IPCManager.shared.readText(from: .cleanedText), !cleaned.isEmpty else {
-            return
-        }
-        textDocumentProxy.insertText(cleaned)
-        state.interimTranscript = ""
-        state.showDone = true
-        Haptics.success()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-            self?.state.showDone = false
-        }
-    }
-
-    private func scheduleErrorClear() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            self?.state.lastError = nil
-        }
-    }
-
     deinit {
         IPCManager.shared.removeAllObservers()
     }
+}
+
+private struct HapticFeedback: KeyboardFeedback {
+    func recordingStarted() { Haptics.light() }
+    func recordingStopped() { Haptics.medium() }
+    func textInserted() { Haptics.success() }
+    func failed() { Haptics.error() }
 }

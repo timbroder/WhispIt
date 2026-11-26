@@ -18,15 +18,31 @@ struct DictationPipelineCoordinatorTests {
         #expect(h.transcriber.resetCount == 1)
     }
 
-    /// H1: the keyboard only re-reads shared state when it receives a Darwin
-    /// notification. Without one it never learns recording started, so its
-    /// mic button keeps sending "start" and the user can't stop by tapping.
+    /// Regression (H1): the keyboard only re-reads shared state when it gets a
+    /// Darwin notification. Without one it never learns recording started,
+    /// so its mic button keeps sending "start" and tapping can't stop.
     @Test func startNotifiesTheKeyboard() {
         let h = PipelineHarness()
         h.requestStart()
-        withKnownIssue("H1: no notification tells the keyboard that recording started") {
-            #expect(h.ipc.didPost(Note.transcriptionUpdated))
-        }
+        #expect(h.ipc.didPost(Note.recordingStarted))
+        #expect(h.ipc.lastState?.recordingActive == true)
+    }
+
+    @Test func failedAudioStartDoesNotAnnounceRecording() {
+        struct NoMic: Error {}
+        let h = PipelineHarness()
+        h.source.startError = NoMic()
+        h.requestStart()
+        #expect(!h.ipc.didPost(Note.recordingStarted))
+    }
+
+    @Test func startWhileRecordingReannouncesSoKeyboardCanResync() {
+        let h = PipelineHarness()
+        h.requestStart()
+        h.requestStart()
+        let announcements = h.ipc.posts.filter { $0 == Note.recordingStarted as String }
+        #expect(announcements.count == 2)
+        #expect(h.source.startCount == 1)
     }
 
     @Test func audioReachesTheTranscriber() async {
@@ -140,16 +156,16 @@ struct DictationPipelineCoordinatorTests {
         h.transcriber.isModelLoaded = false
         h.requestStart()
         #expect(!h.source.isStarted)
-        #expect(h.ipc.lastState?.lastError == "WhisperKit model not loaded")
+        #expect(h.ipc.lastState?.lastError?.contains("Open WhispIt") == true)
     }
 
+    /// Regression (H4): the keyboard must hear about the failure.
     @Test func startWithoutModelTellsTheKeyboard() {
         let h = PipelineHarness()
         h.transcriber.isModelLoaded = false
         h.requestStart()
-        withKnownIssue("H4: keyboard gets no notification when the model isn't loaded") {
-            #expect(h.ipc.didPost(Note.recordingFailed))
-        }
+        #expect(h.ipc.didPost(Note.recordingFailed))
+        #expect(!h.ipc.didPost(Note.recordingStarted))
     }
 
     @Test func audioStartFailureReportsAndAllowsRetry() {

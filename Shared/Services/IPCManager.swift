@@ -1,13 +1,15 @@
 import Foundation
 
-/// The slice of `IPCManager` the dictation pipeline depends on. Lets tests
-/// capture posts and writes instead of touching Darwin notifications and the
-/// App Group container.
+/// The slice of `IPCManager` the app pipeline and keyboard depend on. Lets
+/// tests capture posts and writes instead of touching Darwin notifications and
+/// the App Group container.
 protocol IPCChannel: AnyObject {
     func post(_ name: CFString)
     func observe(_ name: CFString, handler: @escaping () -> Void)
     func write<T: Encodable>(_ value: T, to file: WhispItConstants.SharedFile) throws
     func writeText(_ text: String, to file: WhispItConstants.SharedFile) throws
+    func read<T: Decodable>(_ type: T.Type, from file: WhispItConstants.SharedFile) throws -> T
+    func readText(from file: WhispItConstants.SharedFile) throws -> String
 }
 
 final class IPCManager: IPCChannel {
