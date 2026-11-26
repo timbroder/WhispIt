@@ -29,6 +29,7 @@ final class AppLifecycle: ObservableObject {
         DebugOverrides.resetStateIfRequested()
         #endif
         hasCompletedOnboarding = UserDefaults.standard.bool(forKey: Self.onboardingDoneKey)
+        ModelDownloadService.excludeExistingModelsFromBackup()
         microphoneAuthorized = AVAudioApplication.shared.recordPermission == .granted
     }
 

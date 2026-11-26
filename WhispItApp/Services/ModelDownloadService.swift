@@ -23,6 +23,32 @@ final class ModelDownloadService {
 
     private(set) var isDownloading = false
 
+    /// Root of downloaded models inside the App Group container.
+    static var modelsRoot: URL? {
+        WhispItConstants.sharedContainerURL?.appending(path: "models")
+    }
+
+    /// Creates the models directory and excludes it from iCloud/device
+    /// backups: the model is re-downloadable and ~1.5 GB (App Store
+    /// guideline 2.23, iOS Data Storage Guidelines).
+    static func prepareDownloadBase(_ url: URL) throws {
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        try excludeFromBackup(url)
+    }
+
+    static func excludeFromBackup(_ url: URL) throws {
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var mutableURL = url
+        try mutableURL.setResourceValues(values)
+    }
+
+    /// Applies the backup exclusion to models downloaded by earlier builds.
+    static func excludeExistingModelsFromBackup() {
+        guard let root = modelsRoot, FileManager.default.fileExists(atPath: root.path) else { return }
+        try? excludeFromBackup(root)
+    }
+
     var storedModelURL: URL? {
         guard let defaults = UserDefaults(suiteName: WhispItConstants.appGroupID),
               let path = defaults.string(forKey: Self.modelURLDefaultsKey) else {
@@ -38,7 +64,7 @@ final class ModelDownloadService {
     ///   - remember: record the location so the app treats the model as installed.
     func download(
         variant: String = ModelDownloadService.preferredVariant,
-        into downloadBase: URL? = WhispItConstants.sharedContainerURL?.appending(path: "models"),
+        into downloadBase: URL? = ModelDownloadService.modelsRoot,
         remember: Bool = true,
         progress progressHandler: @escaping (Double) -> Void = { _ in }
     ) async throws -> URL {
@@ -48,10 +74,7 @@ final class ModelDownloadService {
             throw DownloadError.appGroupContainerUnavailable
         }
 
-        try? FileManager.default.createDirectory(
-            at: downloadBase,
-            withIntermediateDirectories: true
-        )
+        try Self.prepareDownloadBase(downloadBase)
 
         isDownloading = true
         defer { isDownloading = false }
