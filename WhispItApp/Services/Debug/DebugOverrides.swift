@@ -6,6 +6,7 @@ import Foundation
 ///     -WhispItAudioFixture <name|path>   feed a WAV file instead of the mic
 ///     -WhispItModelVariant <variant>     download a smaller WhisperKit model
 ///     -WhispItResetState                 wipe onboarding, dictionary and shared files
+///     -WhispItSkipBootstrap              don't load the model or start audio on Home
 ///
 /// Fixture names resolve to `<App Group>/Fixtures/<name>.wav`; absolute paths
 /// are used as-is.
@@ -28,6 +29,12 @@ enum DebugOverrides {
 
     static var modelVariant: String? {
         defaults.string(forKey: "WhispItModelVariant")
+    }
+
+    /// UI tests of screens that don't need the model skip loading it (and the
+    /// keep-alive audio session that follows).
+    static var skipBootstrap: Bool {
+        ProcessInfo.processInfo.arguments.contains("-WhispItSkipBootstrap")
     }
 
     static var shouldResetState: Bool {

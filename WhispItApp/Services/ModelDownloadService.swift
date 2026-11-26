@@ -32,13 +32,19 @@ final class ModelDownloadService {
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
+    /// - Parameters:
+    ///   - downloadBase: where to store the model. Defaults to the App Group
+    ///     container; tests pass their own cache directory.
+    ///   - remember: record the location so the app treats the model as installed.
     func download(
         variant: String = ModelDownloadService.preferredVariant,
+        into downloadBase: URL? = WhispItConstants.sharedContainerURL?.appending(path: "models"),
+        remember: Bool = true,
         progress progressHandler: @escaping (Double) -> Void = { _ in }
     ) async throws -> URL {
         guard !isDownloading else { throw DownloadError.alreadyDownloading }
 
-        guard let downloadBase = WhispItConstants.sharedContainerURL?.appending(path: "models") else {
+        guard let downloadBase else {
             throw DownloadError.appGroupContainerUnavailable
         }
 
@@ -59,8 +65,10 @@ final class ModelDownloadService {
             }
         )
 
-        UserDefaults(suiteName: WhispItConstants.appGroupID)?
-            .set(modelURL.path, forKey: Self.modelURLDefaultsKey)
+        if remember {
+            UserDefaults(suiteName: WhispItConstants.appGroupID)?
+                .set(modelURL.path, forKey: Self.modelURLDefaultsKey)
+        }
 
         return modelURL
     }
