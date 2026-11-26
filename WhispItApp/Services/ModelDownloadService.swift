@@ -8,6 +8,17 @@ final class ModelDownloadService {
     }
 
     static let defaultVariant = "openai_whisper-large-v3-v20240930_turbo"
+
+    /// The variant onboarding downloads. Debug builds can swap in a small
+    /// model with `-WhispItModelVariant openai_whisper-tiny`.
+    static var preferredVariant: String {
+        #if DEBUG
+        if let override = DebugOverrides.modelVariant, !override.isEmpty {
+            return override
+        }
+        #endif
+        return defaultVariant
+    }
     private static let modelURLDefaultsKey = "WhispIt.downloadedModelFolderPath"
 
     private(set) var isDownloading = false
@@ -22,7 +33,7 @@ final class ModelDownloadService {
     }
 
     func download(
-        variant: String = ModelDownloadService.defaultVariant,
+        variant: String = ModelDownloadService.preferredVariant,
         progress progressHandler: @escaping (Double) -> Void = { _ in }
     ) async throws -> URL {
         guard !isDownloading else { throw DownloadError.alreadyDownloading }

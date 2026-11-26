@@ -1,6 +1,40 @@
 import AVFoundation
 import Foundation
 
+/// Something that produces raw input audio buffers (the microphone in
+/// production, a file in debug/test builds). `AudioCaptureService` converts
+/// whatever this delivers to Whisper's 16 kHz mono format.
+protocol AudioInputSource: AnyObject {
+    /// Format of the buffers passed to `start`'s handler. Read right before `start`.
+    var format: AVAudioFormat { get }
+    func start(onBuffer: @escaping (AVAudioPCMBuffer) -> Void) throws
+    func stop()
+}
+
+final class MicrophoneInputSource: AudioInputSource {
+    private let engine = AVAudioEngine()
+
+    var format: AVAudioFormat { engine.inputNode.outputFormat(forBus: 0) }
+
+    func start(onBuffer: @escaping (AVAudioPCMBuffer) -> Void) throws {
+        let inputNode = engine.inputNode
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+            onBuffer(buffer)
+        }
+        do {
+            try engine.start()
+        } catch {
+            inputNode.removeTap(onBus: 0)
+            throw error
+        }
+    }
+
+    func stop() {
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+    }
+}
+
 final class AudioCaptureService {
     enum AudioCaptureError: Error {
         case alreadyRecording
@@ -17,16 +51,30 @@ final class AudioCaptureService {
         )!
     }()
 
-    private let engine = AVAudioEngine()
+    private let source: AudioInputSource
     private var converter: AVAudioConverter?
     private var continuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
     private(set) var isRecording = false
 
+    init(source: AudioInputSource? = nil) {
+        self.source = source ?? Self.defaultSource()
+    }
+
+    private static func defaultSource() -> AudioInputSource {
+        #if DEBUG
+        if let url = DebugOverrides.audioFixtureURL,
+           let fileSource = try? FileAudioInputSource(url: url) {
+            PipelineLog.logger.notice("Using audio fixture \(url.lastPathComponent, privacy: .public)")
+            return fileSource
+        }
+        #endif
+        return MicrophoneInputSource()
+    }
+
     func start() throws -> AsyncStream<AVAudioPCMBuffer> {
         guard !isRecording else { throw AudioCaptureError.alreadyRecording }
 
-        let inputNode = engine.inputNode
-        let inputFormat = inputNode.outputFormat(forBus: 0)
+        let inputFormat = source.format
 
         guard let converter = AVAudioConverter(from: inputFormat, to: Self.whisperFormat) else {
             throw AudioCaptureError.unsupportedInputFormat
@@ -37,14 +85,11 @@ final class AudioCaptureService {
             self.continuation = continuation
         }
 
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
-            self?.process(buffer: buffer)
-        }
-
         do {
-            try engine.start()
+            try source.start { [weak self] buffer in
+                self?.process(buffer: buffer)
+            }
         } catch {
-            inputNode.removeTap(onBus: 0)
             self.continuation?.finish()
             self.continuation = nil
             self.converter = nil
@@ -57,15 +102,14 @@ final class AudioCaptureService {
 
     func stop() {
         guard isRecording else { return }
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        source.stop()
         continuation?.finish()
         continuation = nil
         converter = nil
         isRecording = false
     }
 
-    private func process(buffer: AVAudioPCMBuffer) {
+    func process(buffer: AVAudioPCMBuffer) {
         guard let converter, let continuation else { return }
 
         let ratio = Self.whisperFormat.sampleRate / buffer.format.sampleRate

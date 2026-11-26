@@ -3,7 +3,7 @@ import Foundation
 final class DictionaryLearningService {
     static let promotionThreshold = 3
 
-    private static let candidatesDefaultsKey = "WhispIt.dictionary.candidates"
+    static let candidatesDefaultsKey = "WhispIt.dictionary.candidates"
     private static let exclusions: Set<String> = [
         "i", "i've", "i'm", "i'll", "i'd",
         "ok", "okay",

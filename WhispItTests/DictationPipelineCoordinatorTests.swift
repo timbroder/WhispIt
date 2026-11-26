@@ -1,0 +1,278 @@
+import AVFoundation
+import Foundation
+import Testing
+@testable import WhispIt
+
+private typealias Note = WhispItConstants.DarwinNotification
+
+@Suite("DictationPipelineCoordinator")
+struct DictationPipelineCoordinatorTests {
+
+    // MARK: Happy path
+
+    @Test func startWritesRecordingStateAndStartsCapture() {
+        let h = PipelineHarness()
+        h.requestStart()
+        #expect(h.ipc.lastState?.recordingActive == true)
+        #expect(h.source.isStarted)
+        #expect(h.transcriber.resetCount == 1)
+    }
+
+    /// H1: the keyboard only re-reads shared state when it receives a Darwin
+    /// notification. Without one it never learns recording started, so its
+    /// mic button keeps sending "start" and the user can't stop by tapping.
+    @Test func startNotifiesTheKeyboard() {
+        let h = PipelineHarness()
+        h.requestStart()
+        withKnownIssue("H1: no notification tells the keyboard that recording started") {
+            #expect(h.ipc.didPost(Note.transcriptionUpdated))
+        }
+    }
+
+    @Test func audioReachesTheTranscriber() async {
+        let h = PipelineHarness()
+        h.requestStart()
+        for i in 0..<10 { h.source.deliver(AudioFactory.buffer(startFrame: i * 1_024)) }
+        #expect(await waitUntil { h.transcriber.framesReceived > 0 })
+    }
+
+    @Test func stopProducesCleanedTextForTheKeyboard() async {
+        let h = PipelineHarness()
+        h.transcriber.result = .success("um so the raw text")
+        h.requestStart()
+        h.requestStop()
+        #expect(await h.waitForResult())
+        #expect(h.ipc.didPost(Note.cleanedTextReady))
+        #expect(!h.ipc.didPost(Note.recordingFailed))
+        #expect(h.ipc.texts == ["Cleaned: um so the raw text"])
+        #expect(h.ipc.lastState?.recordingActive == false)
+        #expect(h.ipc.lastState?.lastError == nil)
+        #expect(h.source.stopCount == 1)
+    }
+
+    @Test func dictionaryWordsArePassedAsThePrompt() async throws {
+        let h = PipelineHarness()
+        h.dictionary.add(word: "Kubernetes", source: .manual)
+        h.requestStart()
+        h.requestStop()
+        #expect(await h.waitForResult())
+        let prompt = try #require(h.transcriber.prompts.first ?? nil)
+        #expect(prompt.contains("Kubernetes"))
+    }
+
+    @Test func cleanedTextFeedsDictionaryLearning() async {
+        let h = PipelineHarness()
+        h.cleaner.transform = { _ in "ping Priyanka now" }
+        for _ in 0..<3 {
+            h.requestStart()
+            h.requestStop()
+            #expect(await h.waitUntilIdleAfterResult())
+        }
+        #expect(h.dictionary.allEntries.map(\.word) == ["Priyanka"])
+    }
+
+    // MARK: Cleanup fallbacks
+
+    @Test func cleanupFailureFallsBackToRawText() async {
+        struct Guardrail: Error {}
+        let h = PipelineHarness()
+        h.transcriber.result = .success("raw words")
+        h.cleaner.transform = { _ in throw Guardrail() }
+        h.requestStart()
+        h.requestStop()
+        #expect(await h.waitForResult())
+        #expect(h.ipc.texts == ["raw words"])
+    }
+
+    @Test func unavailableAppleIntelligenceInsertsRawText() async {
+        let h = PipelineHarness()
+        h.transcriber.result = .success("raw words")
+        h.cleaner.isAvailable = false
+        h.requestStart()
+        h.requestStop()
+        #expect(await h.waitForResult())
+        #expect(h.ipc.texts == ["raw words"])
+    }
+
+    // MARK: Failure paths
+
+    @Test(arguments: ["", "   ", "\n"])
+    func emptyTranscriptReportsNoSpeech(_ transcript: String) async {
+        let h = PipelineHarness()
+        h.transcriber.result = .success(transcript)
+        h.requestStart()
+        h.requestStop()
+        #expect(await h.waitForResult())
+        #expect(h.ipc.didPost(Note.recordingFailed))
+        #expect(h.ipc.texts.isEmpty)
+        #expect(h.ipc.lastState?.lastError == "No speech detected")
+    }
+
+    /// H6: Whisper commonly hallucinates short phrases on silent audio. If the
+    /// recording never contained speech, nothing should be inserted.
+    @Test func silentRecordingDoesNotInsertHallucinatedText() async {
+        let h = PipelineHarness()
+        h.transcriber.result = .success("Thank you.")
+        h.requestStart()
+        for _ in 0..<20 { h.source.deliver(AudioFactory.silence()) }
+        _ = await waitUntil { h.transcriber.framesReceived > 0 }
+        h.requestStop()
+        #expect(await h.waitForResult())
+        withKnownIssue("H6: transcript of a silent recording is inserted") {
+            #expect(h.ipc.texts.isEmpty)
+            #expect(h.ipc.didPost(Note.recordingFailed))
+        }
+    }
+
+    @Test func transcriptionErrorIsReported() async {
+        struct DecodeFailed: Error {}
+        let h = PipelineHarness()
+        h.transcriber.result = .failure(DecodeFailed())
+        h.requestStart()
+        h.requestStop()
+        #expect(await h.waitForResult())
+        #expect(h.ipc.didPost(Note.recordingFailed))
+        #expect(h.ipc.lastState?.lastError?.isEmpty == false)
+    }
+
+    @Test func startWithoutModelReportsErrorAndDoesNotRecord() {
+        let h = PipelineHarness()
+        h.transcriber.isModelLoaded = false
+        h.requestStart()
+        #expect(!h.source.isStarted)
+        #expect(h.ipc.lastState?.lastError == "WhisperKit model not loaded")
+    }
+
+    @Test func startWithoutModelTellsTheKeyboard() {
+        let h = PipelineHarness()
+        h.transcriber.isModelLoaded = false
+        h.requestStart()
+        withKnownIssue("H4: keyboard gets no notification when the model isn't loaded") {
+            #expect(h.ipc.didPost(Note.recordingFailed))
+        }
+    }
+
+    @Test func audioStartFailureReportsAndAllowsRetry() {
+        struct NoMic: Error {}
+        let h = PipelineHarness()
+        h.source.startError = NoMic()
+        h.requestStart()
+        #expect(h.ipc.didPost(Note.recordingFailed))
+        #expect(h.ipc.lastState?.recordingActive == false)
+        h.source.startError = nil
+        h.requestStart()
+        #expect(h.source.isStarted)
+    }
+
+    // MARK: State machine
+
+    @Test func secondStartWhileRecordingIsIgnored() {
+        let h = PipelineHarness()
+        h.requestStart()
+        h.requestStart()
+        #expect(h.source.startCount == 1)
+    }
+
+    @Test func stopWithoutStartDoesNothing() {
+        let h = PipelineHarness()
+        h.requestStop()
+        #expect(h.ipc.posts.isEmpty)
+        #expect(h.ipc.states.isEmpty)
+    }
+
+    @Test func startWhileFinalizingIsIgnored() async {
+        let h = PipelineHarness()
+        let gate = AsyncGate()
+        h.cleaner.transform = { raw in gate.waitBlocking(); return raw }
+        h.requestStart()
+        h.requestStop()
+        _ = await waitUntil { h.transcriber.prompts.count == 1 }
+        h.requestStart()
+        #expect(h.source.startCount == 1)
+        gate.open()
+        #expect(await h.waitForResult())
+    }
+
+    @Test func canDictateAgainAfterFinishing() async {
+        let h = PipelineHarness()
+        h.requestStart()
+        h.requestStop()
+        #expect(await h.waitUntilIdleAfterResult())
+        h.requestStart()
+        #expect(h.source.startCount == 2)
+    }
+
+    @Test func silenceTimeoutStopsRecording() async {
+        let h = PipelineHarness(silenceTimeout: 0.2)
+        h.requestStart()
+        h.source.deliver(AudioFactory.buffer())
+        try? await Task.sleep(for: .milliseconds(300))
+        h.source.deliver(AudioFactory.silence())
+        let stopped = await h.waitForResult()
+        // The VAD only sees converted audio, so H2 starves it after one buffer.
+        withKnownIssue("H2: converter drops audio, so silence never reaches the VAD") {
+            #expect(stopped)
+            #expect(h.ipc.didPost(Note.cleanedTextReady))
+        }
+    }
+
+    // MARK: Interruptions
+
+    @Test func interruptionStopsRecordingAndReportsFailure() async {
+        let h = PipelineHarness()
+        h.requestStart()
+        h.interruption.onInterruptionBegan?()
+        h.coordinator.drainQueue()
+        #expect(h.ipc.didPost(Note.recordingFailed))
+        #expect(h.ipc.lastState?.lastError == "Recording interrupted")
+        #expect(h.source.stopCount == 1)
+    }
+
+    @Test func headphonesUnpluggedStopsRecording() {
+        let h = PipelineHarness()
+        h.requestStart()
+        h.interruption.onRouteChanged?(.oldDeviceUnavailable)
+        h.coordinator.drainQueue()
+        #expect(h.ipc.didPost(Note.recordingFailed))
+    }
+
+    @Test func otherRouteChangesKeepRecording() {
+        let h = PipelineHarness()
+        h.requestStart()
+        h.interruption.onRouteChanged?(.newDeviceAvailable)
+        h.coordinator.drainQueue()
+        #expect(!h.ipc.didPost(Note.recordingFailed))
+        #expect(h.source.isStarted)
+    }
+
+    @Test func interruptionEndRestartsKeepAliveSession() {
+        let h = PipelineHarness()
+        h.interruption.onInterruptionEnded?(true)
+        #expect(h.keepAlive.startCount == 1)
+    }
+}
+
+extension PipelineHarness {
+    /// Waits for a result and for the coordinator to leave the finalizing state.
+    func waitUntilIdleAfterResult() async -> Bool {
+        let before = ipc.posts.filter {
+            $0 == Note.cleanedTextReady as String || $0 == Note.recordingFailed as String
+        }.count
+        let gotResult = await waitUntil(timeout: .seconds(3)) {
+            ipc.posts.filter {
+                $0 == Note.cleanedTextReady as String || $0 == Note.recordingFailed as String
+            }.count > before
+        }
+        // isFinalizing is cleared on the queue right after the post.
+        try? await Task.sleep(for: .milliseconds(50))
+        coordinator.drainQueue()
+        return gotResult
+    }
+}
+
+/// A one-shot gate a synchronous closure can block on.
+final class AsyncGate: @unchecked Sendable {
+    private let semaphore = DispatchSemaphore(value: 0)
+    func waitBlocking() { _ = semaphore.wait(timeout: .now() + 5) }
+    func open() { semaphore.signal() }
+}

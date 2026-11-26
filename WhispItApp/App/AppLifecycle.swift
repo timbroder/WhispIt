@@ -18,13 +18,16 @@ final class AppLifecycle: ObservableObject {
     @Published var isDownloadingModel: Bool = false
     @Published var microphoneAuthorized: Bool
 
-    private static let onboardingDoneKey = "WhispIt.hasCompletedOnboarding"
+    nonisolated static let onboardingDoneKey = "WhispIt.hasCompletedOnboarding"
 
     private let modelDownload = ModelDownloadService()
     private let coordinator = DictationPipelineCoordinator.shared
     private let backgroundAudio = BackgroundAudioSessionManager.shared
 
     init() {
+        #if DEBUG
+        DebugOverrides.resetStateIfRequested()
+        #endif
         hasCompletedOnboarding = UserDefaults.standard.bool(forKey: Self.onboardingDoneKey)
         microphoneAuthorized = AVAudioApplication.shared.recordPermission == .granted
     }

@@ -47,8 +47,59 @@ targets:
       - package: WhisperKit
         product: WhisperKit
     scheme:
-      testTargets: []
-      gatherCoverageData: false
+      testTargets:
+        - WhispItTests
+        - WhispItIntegrationTests
+        - WhispItUITests
+      gatherCoverageData: true
+      coverageTargets:
+        - WhispItApp
+
+  # Fast, hermetic unit tests (no model, no network). Run in CI.
+  WhispItTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: WhispItTests
+    dependencies:
+      - target: WhispItApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.whispit.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+        # The app target is WhispItApp but its product is WhispIt.app.
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/WhispIt.app/WhispIt"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+  # Local-only tests that need a WhisperKit model download and Apple
+  # Intelligence (Foundation Models). Excluded from CI.
+  WhispItIntegrationTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: WhispItIntegrationTests
+    dependencies:
+      - target: WhispItApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.whispit.app.integrationtests
+        GENERATE_INFOPLIST_FILE: YES
+        # The app target is WhispItApp but its product is WhispIt.app.
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/WhispIt.app/WhispIt"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+  WhispItUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: WhispItUITests
+    dependencies:
+      - target: WhispItApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.whispit.app.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: WhispItApp
 
   WhispItKeyboard:
     type: app-extension
