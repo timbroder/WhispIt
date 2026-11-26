@@ -206,14 +206,13 @@ struct DictationPipelineCoordinatorTests {
         let h = PipelineHarness(silenceTimeout: 0.2)
         h.requestStart()
         h.source.deliver(AudioFactory.buffer())
-        try? await Task.sleep(for: .milliseconds(300))
-        h.source.deliver(AudioFactory.silence())
-        let stopped = await h.waitForResult()
-        // The VAD only sees converted audio, so H2 starves it after one buffer.
-        withKnownIssue("H2: converter drops audio, so silence never reaches the VAD") {
-            #expect(stopped)
-            #expect(h.ipc.didPost(Note.cleanedTextReady))
+        // Like a real mic, keep delivering (silent) buffers until the VAD fires.
+        // Regression (H2): the VAD only sees converted audio.
+        let stopped = await waitUntil(timeout: .seconds(2)) {
+            h.source.deliver(AudioFactory.silence())
+            return h.ipc.didPost(Note.cleanedTextReady)
         }
+        #expect(stopped)
     }
 
     // MARK: Interruptions

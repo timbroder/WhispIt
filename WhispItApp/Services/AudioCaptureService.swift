@@ -119,11 +119,15 @@ final class AudioCaptureService {
             frameCapacity: estimatedFrames
         ) else { return }
 
+        // Report `.noDataNow` (not `.endOfStream`) once this buffer is used:
+        // end-of-stream permanently finishes the converter, after which every
+        // later buffer converts to nothing. The converter stays alive for the
+        // whole recording so its resampler state carries across buffers.
         var sourceConsumed = false
         var error: NSError?
         converter.convert(to: output, error: &error) { _, status in
             if sourceConsumed {
-                status.pointee = .endOfStream
+                status.pointee = .noDataNow
                 return nil
             }
             sourceConsumed = true
