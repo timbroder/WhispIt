@@ -5,28 +5,30 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Image(systemName: "mic.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundStyle(.tint)
+            ScrollIfNeeded {
+                VStack(spacing: 24) {
+                    Image(systemName: "mic.circle.fill")
+                        .font(.system(size: 80))
+                        .foregroundStyle(.tint)
 
-                Text("WhispIt")
-                    .font(.largeTitle).bold()
+                    Text("WhispIt")
+                        .font(.largeTitle).bold()
 
-                statusCard
+                    statusCard
 
-                Spacer()
+                    Spacer()
 
-                NavigationLink {
-                    SettingsView()
-                } label: {
-                    Label("Settings", systemImage: "gearshape")
-                        .frame(maxWidth: .infinity)
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .padding()
             }
-            .padding()
             .navigationTitle("")
             .navigationBarHidden(true)
         }
