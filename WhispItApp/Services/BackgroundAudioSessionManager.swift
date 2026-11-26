@@ -9,7 +9,21 @@ import Foundation
 /// `start()` is therefore keyed off whether the engine is actually running,
 /// not off a flag, and route changes restart it automatically.
 final class BackgroundAudioSessionManager {
-    static let shared = BackgroundAudioSessionManager()
+    static let shared: BackgroundAudioSessionManager = {
+        #if DEBUG
+        // Fixture runs never touch the mic, so keep the app alive with a
+        // playback-only session. Lets simulator QA run the full keyboard
+        // loop on hosts where the simulator has no microphone access.
+        if DebugOverrides.audioFixtureURL != nil {
+            return BackgroundAudioSessionManager(configureSession: {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+                try session.setActive(true)
+            })
+        }
+        #endif
+        return BackgroundAudioSessionManager()
+    }()
 
     enum BackgroundAudioError: Error {
         case audioFormatUnavailable
