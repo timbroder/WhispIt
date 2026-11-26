@@ -36,7 +36,9 @@ struct KeyboardView: View {
                     modifierKey(image: "delete.left", action: actions.onBackspace)
                 }
                 HStack(spacing: 6) {
-                    modifierKey(image: "globe", action: actions.onGlobe, width: 44)
+                    if state.showsGlobeKey {
+                        modifierKey(image: "globe", action: actions.onGlobe, width: 44)
+                    }
                     spaceKey
                     returnKey
                 }

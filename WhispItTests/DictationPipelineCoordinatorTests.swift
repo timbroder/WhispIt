@@ -66,6 +66,27 @@ struct DictationPipelineCoordinatorTests {
         #expect(h.source.stopCount == 1)
     }
 
+    /// Regression (U4): the keyboard learns capture ended before the result.
+    @Test(arguments: [false, true])
+    func stopAnnouncesProcessing(bySilence: Bool) async {
+        let h = PipelineHarness(silenceTimeout: bySilence ? 0.2 : 60)
+        h.requestStart()
+        await h.speak()
+        if bySilence {
+            _ = await waitUntil(timeout: .seconds(2)) {
+                h.source.deliver(AudioFactory.silence())
+                return h.ipc.didPost(Note.recordingStopped)
+            }
+        } else {
+            h.requestStop()
+        }
+        #expect(h.ipc.didPost(Note.recordingStopped))
+        let stoppedIndex = h.ipc.posts.firstIndex(of: Note.recordingStopped as String)
+        #expect(await h.waitForResult())
+        let resultIndex = h.ipc.posts.firstIndex(of: Note.cleanedTextReady as String)
+        if let stoppedIndex, let resultIndex { #expect(stoppedIndex < resultIndex) }
+    }
+
     @Test func dictionaryWordsArePassedAsThePrompt() async throws {
         let h = PipelineHarness()
         h.dictionary.add(word: "Kubernetes", source: .manual)

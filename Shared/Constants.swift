@@ -8,6 +8,8 @@ enum WhispItConstants {
         static let recordingStopRequested = "com.whispit.notification.recordingStopRequested" as CFString
         /// App → keyboard: capture is running; re-read shared state.
         static let recordingStarted = "com.whispit.notification.recordingStarted" as CFString
+        /// App → keyboard: capture ended (tap or silence); transcription is running.
+        static let recordingStopped = "com.whispit.notification.recordingStopped" as CFString
         static let transcriptionUpdated = "com.whispit.notification.transcriptionUpdated" as CFString
         static let cleanedTextReady = "com.whispit.notification.cleanedTextReady" as CFString
         static let recordingFailed = "com.whispit.notification.recordingFailed" as CFString

@@ -45,6 +45,14 @@ final class KeyboardViewController: UIInputViewController {
         dictation.activate()
     }
 
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        // Apple: hide the custom globe when the system provides one.
+        if state.showsGlobeKey != needsInputModeSwitchKey {
+            state.showsGlobeKey = needsInputModeSwitchKey
+        }
+    }
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         dictation.refreshFromSharedState(ignoringStaleError: true)
