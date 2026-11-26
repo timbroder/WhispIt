@@ -107,7 +107,7 @@ struct AudioCaptureConversionTests {
         #expect(first.format.commonFormat == .pcmFormatFloat32)
     }
 
-    /// H2: every input buffer must keep producing audio. 100 × 1024 frames at
+    /// Regression (H2): every input buffer must keep producing audio. 100 × 1024 frames at
     /// 48 kHz is ~2.13 s, which should yield ~34,133 frames at 16 kHz.
     @Test(arguments: [(48_000.0, AVAudioChannelCount(2)), (44_100.0, AVAudioChannelCount(1))])
     func longRecordingsKeepEveryBuffer(sampleRate: Double, channels: AVAudioChannelCount) async throws {
@@ -115,19 +115,15 @@ struct AudioCaptureConversionTests {
         let output = try await convert(micBuffers(count: 100, sampleRate: sampleRate, channels: channels), source: source)
         let produced = output.reduce(0) { $0 + Int($1.frameLength) }
         let expected = Int(Double(100 * 1_024) * 16_000 / sampleRate)
-        withKnownIssue("H2: converter stops producing audio after the first buffer") {
-            #expect(abs(produced - expected) < expected / 20, "produced \(produced) of ~\(expected) frames")
-        }
+        #expect(abs(produced - expected) < expected / 20, "produced \(produced) of ~\(expected) frames")
     }
 
     @Test func convertedAudioKeepsItsEnergy() async throws {
         let output = try await convert(micBuffers(count: 50), source: StubAudioSource())
         let levels = output.map(VoiceActivityDetector.rms(of:))
         let quietBuffers = levels.filter { $0 < 0.01 }.count
-        withKnownIssue("H2: converter stops producing audio after the first buffer") {
-            #expect(output.count >= 45, "got \(output.count) buffers")
-            #expect(quietBuffers == 0)
-        }
+        #expect(output.count >= 45, "got \(output.count) buffers")
+        #expect(quietBuffers == 0)
     }
 
     @Test func startTwiceThrows() throws {
