@@ -152,6 +152,12 @@ struct PipelineHarness {
         coordinator.drainQueue()
     }
 
+    /// Delivers loud audio so the VAD registers speech in this recording.
+    func speak(buffers: Int = 5) async {
+        for i in 0..<buffers { source.deliver(AudioFactory.buffer(startFrame: i * 1_024)) }
+        _ = await waitUntil { transcriber.framesReceived > 0 }
+    }
+
     func requestStop() {
         ipc.simulate(WhispItConstants.DarwinNotification.recordingStopRequested)
         coordinator.drainQueue()

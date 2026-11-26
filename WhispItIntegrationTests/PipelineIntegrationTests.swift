@@ -102,14 +102,13 @@ struct PipelineIntegrationTests {
         #expect(Transcript.contains(text, "after"))
     }
 
-    /// H6 with the real model: a silent recording must not insert anything.
+    /// Regression (H6) with the real model: a silent recording inserts nothing.
     @Test func silentRecordingInsertsNothing() async throws {
         let run = try await Run(.silence, silenceTimeout: 2)
         run.start()
         #expect(await run.waitForResult())
         print("[pipeline silence] posts=\(run.ipc.posts) texts=\(run.ipc.texts)")
-        withKnownIssue("H6: silent recordings insert Whisper's \"[BLANK_AUDIO]\" marker") {
-            #expect(run.ipc.texts.isEmpty, "inserted: \(run.ipc.texts)")
-        }
+        #expect(run.ipc.texts.isEmpty, "inserted: \(run.ipc.texts)")
+        #expect(run.ipc.didPost(Note.recordingFailed))
     }
 }

@@ -9,6 +9,12 @@ final class VoiceActivityDetector {
 
     private var lastVoiceTimestamp: Date?
     private var hasFired = false
+    private let voiceLock = NSLock()
+    private var _heardVoice = false
+
+    /// Whether any buffer since the last reset was loud enough to be speech.
+    /// Read from the pipeline queue while `feed` runs on the capture task.
+    var heardVoice: Bool { voiceLock.withLock { _heardVoice } }
     private let now: () -> Date
 
     init(
@@ -22,6 +28,7 @@ final class VoiceActivityDetector {
     func reset() {
         lastVoiceTimestamp = nil
         hasFired = false
+        voiceLock.withLock { _heardVoice = false }
     }
 
     func feed(_ buffer: AVAudioPCMBuffer) {
@@ -29,6 +36,7 @@ final class VoiceActivityDetector {
         let now = now()
 
         if level >= silenceThreshold {
+            voiceLock.withLock { _heardVoice = true }
             lastVoiceTimestamp = now
             hasFired = false
             return

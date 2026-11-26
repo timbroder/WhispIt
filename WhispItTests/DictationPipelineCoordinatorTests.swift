@@ -95,6 +95,7 @@ struct DictationPipelineCoordinatorTests {
         h.transcriber.result = .success("raw words")
         h.cleaner.transform = { _ in throw Guardrail() }
         h.requestStart()
+        await h.speak()
         h.requestStop()
         #expect(await h.waitForResult())
         #expect(h.ipc.texts == ["raw words"])
@@ -105,6 +106,7 @@ struct DictationPipelineCoordinatorTests {
         h.transcriber.result = .success("raw words")
         h.cleaner.isAvailable = false
         h.requestStart()
+        await h.speak()
         h.requestStop()
         #expect(await h.waitForResult())
         #expect(h.ipc.texts == ["raw words"])
@@ -124,8 +126,8 @@ struct DictationPipelineCoordinatorTests {
         #expect(h.ipc.lastState?.lastError == "No speech detected")
     }
 
-    /// H6: Whisper commonly hallucinates short phrases on silent audio. If the
-    /// recording never contained speech, nothing should be inserted.
+    /// Regression (H6): Whisper hallucinates short phrases on silent audio. If
+    /// the recording never contained speech, nothing should be inserted.
     @Test func silentRecordingDoesNotInsertHallucinatedText() async {
         let h = PipelineHarness()
         h.transcriber.result = .success("Thank you.")
@@ -134,10 +136,34 @@ struct DictationPipelineCoordinatorTests {
         _ = await waitUntil { h.transcriber.framesReceived > 0 }
         h.requestStop()
         #expect(await h.waitForResult())
-        withKnownIssue("H6: transcript of a silent recording is inserted") {
-            #expect(h.ipc.texts.isEmpty)
-            #expect(h.ipc.didPost(Note.recordingFailed))
-        }
+        #expect(h.ipc.texts.isEmpty)
+        #expect(h.ipc.didPost(Note.recordingFailed))
+        #expect(h.ipc.lastState?.lastError == "No speech detected")
+    }
+
+    @Test func shortAnswerAfterRealSpeechIsInserted() async {
+        let h = PipelineHarness()
+        h.transcriber.result = .success("Yes.")
+        h.cleaner.isAvailable = false
+        h.requestStart()
+        await h.speak()
+        h.requestStop()
+        #expect(await h.waitForResult())
+        #expect(h.ipc.texts == ["Yes."])
+    }
+
+    /// A soft speaker may never cross the VAD threshold; real sentences from a
+    /// "quiet" recording must still be inserted.
+    @Test func longTranscriptFromQuietRecordingIsKept() async {
+        let h = PipelineHarness()
+        h.transcriber.result = .success("please call me back after lunch")
+        h.cleaner.isAvailable = false
+        h.requestStart()
+        for _ in 0..<5 { h.source.deliver(AudioFactory.buffer(amplitude: 0.005)) }
+        _ = await waitUntil { h.transcriber.framesReceived > 0 }
+        h.requestStop()
+        #expect(await h.waitForResult())
+        #expect(h.ipc.texts == ["please call me back after lunch"])
     }
 
     @Test func transcriptionErrorIsReported() async {

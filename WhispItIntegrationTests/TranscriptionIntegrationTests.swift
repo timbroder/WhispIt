@@ -60,13 +60,11 @@ struct TranscriptionIntegrationTests {
         #expect(!Transcript.contains(biased, "vocabulary"), "prompt text leaked into the transcript")
     }
 
-    /// Whisper emits non-speech markers like "[BLANK_AUDIO]" for silence.
+    /// Regression (H6): Whisper emits markers like "[BLANK_AUDIO]" for silence.
     @Test func silenceProducesNoWords() async throws {
         let text = try await transcribe(.silence)
         print("[silence] \"\(text)\"")
-        withKnownIssue("H6: silence transcribes as \"[BLANK_AUDIO]\"") {
-            #expect(text.isEmpty, "got \"\(text)\"")
-        }
+        #expect(text.isEmpty, "got \"\(text)\"")
     }
 
     @Test func silenceWithDictionaryPromptProducesNoWords() async throws {
