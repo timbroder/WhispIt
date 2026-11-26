@@ -1,7 +1,12 @@
 import AVFoundation
 import Foundation
 
-final class DictationPipelineCoordinator {
+// Thread safety: every mutable property except `didStartObserving` is read and
+// written only on `queue` (a serial queue). `didStartObserving` is touched only by
+// `startObserving()`, which AppLifecycle calls on the main actor. `finalize()` runs
+// off-queue but uses only immutable (`let`) services. Keep new mutable state on
+// `queue` to preserve this invariant.
+final class DictationPipelineCoordinator: @unchecked Sendable {
     static let shared = DictationPipelineCoordinator()
 
     private let queue = DispatchQueue(label: "com.whispit.pipeline")
