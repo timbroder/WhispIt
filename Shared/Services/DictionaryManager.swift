@@ -6,6 +6,10 @@ final class DictionaryManager {
     private let lock = NSLock()
     private var cache: [DictionaryEntry] = []
     private var loaded = false
+    /// Set when the file exists but couldn't be read (e.g. still protected
+    /// before first unlock). Writes are held back so they can't overwrite
+    /// entries we failed to load; the next reload retries.
+    private var readFailed = false
 
     private static let encoder: JSONEncoder = {
         let e = JSONEncoder()
@@ -30,16 +34,44 @@ final class DictionaryManager {
 
     func reload() {
         lock.lock()
-        cache = (try? loadFromDisk()) ?? []
-        loaded = true
+        loadLocked()
         lock.unlock()
     }
 
     private func ensureLoadedLocked() {
-        if !loaded {
-            cache = (try? loadFromDisk()) ?? []
-            loaded = true
+        if !loaded { loadLocked() }
+    }
+
+    private func loadLocked() {
+        loaded = true
+        readFailed = false
+        guard let url = fileURL, FileManager.default.fileExists(atPath: url.path) else {
+            cache = []
+            return
         }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            readFailed = true
+            cache = []
+            return
+        }
+        do {
+            cache = try Self.decoder.decode([DictionaryEntry].self, from: data)
+        } catch {
+            // Unreadable JSON: move it aside instead of letting the next save
+            // overwrite it, so the user's words can still be recovered.
+            quarantine(url)
+            cache = []
+        }
+    }
+
+    private func quarantine(_ url: URL) {
+        let stamp = Int(Date().timeIntervalSince1970)
+        let backup = url.deletingLastPathComponent()
+            .appending(path: "\(url.deletingPathExtension().lastPathComponent).corrupt-\(stamp).json")
+        try? FileManager.default.moveItem(at: url, to: backup)
     }
 
     var allEntries: [DictionaryEntry] {
@@ -100,15 +132,8 @@ final class DictionaryManager {
         }
     }
 
-    private func loadFromDisk() throws -> [DictionaryEntry] {
-        guard let url = fileURL else { return [] }
-        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
-        let data = try Data(contentsOf: url)
-        return try Self.decoder.decode([DictionaryEntry].self, from: data)
-    }
-
     private func persistLocked() {
-        guard let url = fileURL else { return }
+        guard let url = fileURL, !readFailed else { return }
         do {
             let data = try Self.encoder.encode(cache)
             try data.write(to: url, options: .atomic)

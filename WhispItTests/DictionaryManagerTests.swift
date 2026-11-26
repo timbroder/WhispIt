@@ -92,8 +92,8 @@ struct DictionaryManagerTests {
         #expect(manager.allEntries.map(\.word) == ["Ephemeral"])
     }
 
-    /// H8: a corrupt dictionary file must not be silently replaced by the next
-    /// write, which would throw away every entry the user had.
+    /// Regression (H8): a corrupt dictionary file must not be silently replaced
+    /// by the next write, which would throw away every entry the user had.
     @Test func corruptFileIsNotOverwrittenByNextAdd() throws {
         let garbage = Data("{ not json".utf8)
         try garbage.write(to: fileURL)
@@ -105,8 +105,27 @@ struct DictionaryManagerTests {
             && (try? Data(contentsOf: fileURL)) == garbage
         let backups = (try? FileManager.default.contentsOfDirectory(atPath: tempDir.url.path)) ?? []
         let backedUp = backups.contains { $0.hasPrefix("dictionary.corrupt") }
-        withKnownIssue("H8: corrupt dictionary.json is overwritten (data loss)") {
-            #expect(preserved || backedUp)
-        }
+        #expect(preserved || backedUp)
+        #expect(manager.allEntries.map(\.word) == ["New"], "the dictionary keeps working")
+    }
+
+    @Test func corruptFileIsMovedAsideWithItsContents() throws {
+        let garbage = Data("[{\"word\": \"Half".utf8)
+        try garbage.write(to: fileURL)
+        _ = makeManager().allEntries
+        let names = try FileManager.default.contentsOfDirectory(atPath: tempDir.url.path)
+        let backup = try #require(names.first { $0.hasPrefix("dictionary.corrupt-") })
+        #expect(try Data(contentsOf: tempDir.file(backup)) == garbage)
+        #expect(!FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
+    @Test func unreadableFileIsNeverOverwritten() throws {
+        // A directory where the file should be: exists, but can't be read as data.
+        try FileManager.default.createDirectory(at: fileURL, withIntermediateDirectories: true)
+        let manager = makeManager()
+        manager.add(word: "InMemory", source: .manual)
+        #expect(manager.allEntries.map(\.word) == ["InMemory"])
+        var isDirectory: ObjCBool = false
+        #expect(FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory) && isDirectory.boolValue)
     }
 }
