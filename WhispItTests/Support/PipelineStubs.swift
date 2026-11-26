@@ -32,6 +32,16 @@ final class StubIPC: IPCChannel, @unchecked Sendable {
         lock.withLock { _texts.append(text) }
     }
 
+    func read<T: Decodable>(_ type: T.Type, from file: WhispItConstants.SharedFile) throws -> T {
+        guard let state = lastState as? T else { throw CocoaError(.fileNoSuchFile) }
+        return state
+    }
+
+    func readText(from file: WhispItConstants.SharedFile) throws -> String {
+        guard let text = texts.last else { throw CocoaError(.fileNoSuchFile) }
+        return text
+    }
+
     /// Delivers a notification as if the keyboard had posted it.
     func simulate(_ name: CFString) {
         let handler = lock.withLock { handlers[name as String] }

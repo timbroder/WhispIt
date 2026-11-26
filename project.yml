@@ -49,6 +49,7 @@ targets:
     scheme:
       testTargets:
         - WhispItTests
+        - WhispItKeyboardTests
         - WhispItIntegrationTests
         - WhispItUITests
       gatherCoverageData: true
@@ -70,6 +71,21 @@ targets:
         # The app target is WhispItApp but its product is WhispIt.app.
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/WhispIt.app/WhispIt"
         BUNDLE_LOADER: "$(TEST_HOST)"
+
+  # Keyboard logic. Extensions can't host tests, so the keyboard's
+  # non-UI sources and Shared/ are compiled straight into a hostless bundle.
+  WhispItKeyboardTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: WhispItKeyboardTests
+      - path: Shared
+      - path: WhispItKeyboard/KeyboardState.swift
+      - path: WhispItKeyboard/KeyboardDictationController.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.whispit.app.keyboardtests
+        GENERATE_INFOPLIST_FILE: YES
 
   # Local-only tests that need a WhisperKit model download and Apple
   # Intelligence (Foundation Models). Excluded from CI.
