@@ -29,10 +29,14 @@ struct CandidateExtractionTests {
         #expect(candidates("so I think I can").isEmpty)
     }
 
-    @Test func singleCapitalLettersAreNotLearned() {
-        withKnownIssue("L1 (P3): single letters like \"B\" in \"plan B\" are learned as vocabulary") {
-            #expect(candidates("plan B is fine").isEmpty)
-        }
+    /// Regression (L1): single letters were learned and added to the prompt.
+    @Test(arguments: ["plan B is fine", "take vitamin C daily", "row A seat"])
+    func singleCapitalLettersAreNotLearned(_ text: String) {
+        #expect(candidates(text).isEmpty)
+    }
+
+    @Test func twoLetterAcronymsAreStillLearned() {
+        #expect(candidates("ping the QA team and HR") == ["QA", "HR"])
     }
 
     @Test(arguments: ["I", "OK", "Ok", "Mr", "Dr", "I'm", "I'll"])

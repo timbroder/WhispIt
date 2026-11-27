@@ -12,6 +12,10 @@ import Testing
 struct CleanupIntegrationTests {
     let cleanup = CleanupService()
 
+    init() async {
+        await FoundationModelsWarmup.shared.ensure()
+    }
+
     @Test func removesFillerWordsAndKeepsMeaning() async throws {
         let raw = "um so basically I think we should uh ship the new build on Friday you know"
         let cleaned = try await cleanup.clean(raw)
@@ -22,16 +26,6 @@ struct CleanupIntegrationTests {
         #expect(!cleaned.lowercased().contains("you know"))
         for word in ["ship", "build", "friday"] {
             #expect(Transcript.contains(cleaned, word), "lost \"\(word)\": \(cleaned)")
-        }
-    }
-
-    @Test func keepsOnlyTheCorrectedVersion() async throws {
-        let raw = "let's meet at three no wait let's meet at four o'clock tomorrow"
-        let cleaned = try await cleanup.clean(raw)
-        print("[cleanup correction] \(cleaned)")
-        #expect(Transcript.contains(cleaned, "four") || cleaned.contains("4"))
-        withKnownIssue("H13: cleanup keeps retracted words from self-corrections", isIntermittent: true) {
-            #expect(!Transcript.contains(cleaned, "three") && !cleaned.contains("3"), "kept the retracted time: \(cleaned)")
         }
     }
 

@@ -72,7 +72,9 @@ final class DictionaryLearningService {
             let isAllCaps = cleaned.count >= 2 && cleaned == cleaned.uppercased()
             let startsWithUpper = cleaned.first?.isUppercase ?? false
 
-            if isAllCaps || (!atSentenceStart && startsWithUpper) {
+            // Single letters ("plan B", "vitamin C") aren't vocabulary.
+            let isWord = cleaned.count >= 2
+            if isWord && (isAllCaps || (!atSentenceStart && startsWithUpper)) {
                 candidates.append(cleaned)
             }
         }
