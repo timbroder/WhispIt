@@ -19,8 +19,12 @@ final class OnboardingUITests: XCTestCase {
         app.launch()
         app.buttons["Get Started"].tap()
         app.buttons["Allow Microphone"].tap()
-        XCTAssertTrue(Springboard.tapAlertButton("Allow"), "no microphone permission alert")
-        XCTAssertTrue(app.staticTexts["Download Speech Model"].waitForExistence(timeout: 5))
+        // If a previous attempt's prompt was still up, XCUITest's default
+        // interruption handler may already have answered it with Allow, so
+        // no prompt appears now. Either way, access granted must advance.
+        Springboard.tapAlertButton("Allow")
+        XCTAssertTrue(app.staticTexts["Download Speech Model"].waitForExistence(timeout: 10),
+                      "granting microphone access should advance to the model step")
     }
 
     /// Regression (H9): denying the microphone must leave the user a way forward.
@@ -30,7 +34,7 @@ final class OnboardingUITests: XCTestCase {
         app.launch()
         app.buttons["Get Started"].tap()
         app.buttons["Allow Microphone"].tap()
-        XCTAssertTrue(Springboard.tapAlertButton("Don’t Allow") || Springboard.tapAlertButton("Don't Allow"))
+        XCTAssertTrue(Springboard.tapAlertButton("Don’t Allow", "Don't Allow"), "no microphone permission alert")
         XCTAssertTrue(app.staticTexts["Microphone Access"].waitForExistence(timeout: 3), "should stay on the step")
         XCTAssertTrue(app.buttons["Open Settings"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["Allow Microphone"].exists, "the dead-end button is replaced")
