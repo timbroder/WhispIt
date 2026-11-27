@@ -97,3 +97,17 @@ func waitUntil(timeout: Duration, _ condition: () -> Bool) async -> Bool {
 }
 
 let appleIntelligenceAvailable = CleanupService().isAvailable
+
+/// On some hosts the first Foundation Models request in a fresh process
+/// fails while model assets load (WhispIt-enu). Cleanup suites call this so
+/// they measure the prompt, not the host. Runs once per process.
+actor FoundationModelsWarmup {
+    static let shared = FoundationModelsWarmup()
+    private var done = false
+
+    func ensure() async {
+        guard !done else { return }
+        done = true
+        _ = try? await CleanupService().clean("hello there")
+    }
+}
