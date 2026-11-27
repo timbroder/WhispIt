@@ -45,6 +45,27 @@ struct DictationPipelineCoordinatorTests {
         #expect(h.source.startCount == 1)
     }
 
+    /// Regression (PERF1): the cleanup model warms up while the user talks.
+    @Test func startPreparesCleanupWhenAvailable() {
+        let h = PipelineHarness()
+        h.requestStart()
+        #expect(h.cleaner.prepareCount == 1)
+    }
+
+    @Test func startDoesNotPrepareUnavailableCleanup() {
+        let h = PipelineHarness()
+        h.cleaner.isAvailable = false
+        h.requestStart()
+        #expect(h.cleaner.prepareCount == 0)
+    }
+
+    @Test func failedStartDoesNotPrepareCleanup() {
+        let h = PipelineHarness()
+        h.transcriber.isModelLoaded = false
+        h.requestStart()
+        #expect(h.cleaner.prepareCount == 0)
+    }
+
     @Test func audioReachesTheTranscriber() async {
         let h = PipelineHarness()
         h.requestStart()

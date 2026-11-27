@@ -14,6 +14,9 @@ protocol Transcribing: AnyObject {
 
 protocol TextCleaning: AnyObject {
     var isAvailable: Bool { get }
+    /// Called when recording starts so the model can warm up while the user
+    /// is still talking.
+    func prepare()
     func clean(_ raw: String) async throws -> String
 }
 

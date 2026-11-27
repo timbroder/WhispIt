@@ -123,6 +123,7 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
             let stream = try audioCapture.start()
             PipelineLog.logger.info("Recording started")
             ipc.post(WhispItConstants.DarwinNotification.recordingStarted)
+            if cleanup.isAvailable { cleanup.prepare() }
             consumerTask = Task { [weak self, detector] in
                 guard let self else { return }
                 for await buffer in stream {

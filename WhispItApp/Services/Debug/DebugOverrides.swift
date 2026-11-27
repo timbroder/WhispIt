@@ -34,7 +34,15 @@ enum DebugOverrides {
     /// UI tests of screens that don't need the model skip loading it (and the
     /// keep-alive audio session that follows).
     static var skipBootstrap: Bool {
-        ProcessInfo.processInfo.arguments.contains("-WhispItSkipBootstrap")
+        ProcessInfo.processInfo.arguments.contains("-WhispItSkipBootstrap") || isUnitTestHost
+    }
+
+    /// The app is hosting a unit/integration test bundle. Tests drive the
+    /// pipeline themselves, so the host must not load the user's model or
+    /// start the keep-alive audio session (which aborts on simulators
+    /// without microphone access).
+    static var isUnitTestHost: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     static var shouldResetState: Bool {
