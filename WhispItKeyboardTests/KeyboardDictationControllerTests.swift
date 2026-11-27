@@ -77,7 +77,7 @@ struct KeyboardHarness {
     final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 10_000) }
     final class Inserted: @unchecked Sendable { var texts: [String] = [] }
 
-    init(initialState: SharedState? = nil) {
+    init(initialState: SharedState? = nil, fullAccess: Bool = true) {
         app.sharedState = initialState
         controller = KeyboardDictationController(
             state: state,
@@ -85,6 +85,7 @@ struct KeyboardHarness {
             scheduler: scheduler,
             feedback: feedback,
             now: { [clock] in clock.now },
+            hasFullAccess: { fullAccess },
             deliver: { work in MainActor.assumeIsolated { work() } },
             insertText: { [inserted] in inserted.texts.append($0) }
         )
@@ -209,6 +210,25 @@ struct KeyboardDictationControllerTests {
         h.appStopsRecording()
         #expect(h.state.processing)
         #expect(h.app.posted(Note.recordingStopRequested) == 1)
+    }
+
+    // MARK: Full Access (H5)
+
+    /// Regression (H5): without Full Access dictation can't work; the user
+    /// used to get the misleading "open the app" timeout instead.
+    @Test func withoutFullAccessExplainsHowToEnableIt() {
+        let h = KeyboardHarness(fullAccess: false)
+        h.controller.micTapped()
+        #expect(h.app.posts.isEmpty, "nothing is sent to the app")
+        #expect(h.state.lastError == KeyboardDictationController.fullAccessRequiredMessage)
+        #expect(!h.controller.awaitingStart)
+        #expect(h.feedback.events == ["failed"])
+        h.scheduler.advance(3)
+        #expect(h.state.lastError == nil)
+    }
+
+    @Test func fullAccessMessageFitsTheBanner() {
+        #expect(KeyboardDictationController.fullAccessRequiredMessage.count <= 90)
     }
 
     // MARK: App not answering (H4)

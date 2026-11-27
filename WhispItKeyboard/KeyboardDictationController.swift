@@ -49,6 +49,7 @@ final class KeyboardDictationController {
 
     static let appNotRespondingMessage = "Open the WhispIt app to turn on dictation."
     static let processingTimedOutMessage = "Dictation timed out. Try again."
+    static let fullAccessRequiredMessage = "Turn on Allow Full Access in Settings → Apps → WhispIt → Keyboards to dictate."
 
     let state: KeyboardState
     private let ipc: IPCChannel
@@ -56,6 +57,7 @@ final class KeyboardDictationController {
     private let feedback: KeyboardFeedback
     private let timing: Timing
     private let now: () -> Date
+    private let hasFullAccess: () -> Bool
     private let insertText: (String) -> Void
     /// Hops an IPC callback (any thread) onto the main actor.
     private let deliver: (@escaping @MainActor () -> Void) -> Void
@@ -72,6 +74,7 @@ final class KeyboardDictationController {
         feedback: KeyboardFeedback,
         timing: Timing = Timing(),
         now: @escaping () -> Date = Date.init,
+        hasFullAccess: @escaping () -> Bool = { true },
         deliver: @escaping (@escaping @MainActor () -> Void) -> Void = { work in
             DispatchQueue.main.async { MainActor.assumeIsolated { work() } }
         },
@@ -83,6 +86,7 @@ final class KeyboardDictationController {
         self.feedback = feedback
         self.timing = timing
         self.now = now
+        self.hasFullAccess = hasFullAccess
         self.deliver = deliver
         self.insertText = insertText
     }
@@ -113,6 +117,15 @@ final class KeyboardDictationController {
             ipc.post(WhispItConstants.DarwinNotification.recordingStopRequested)
             enterProcessing()
         } else {
+            // Without Full Access the keyboard can't share the App Group
+            // container with the app, so dictation can't work; say why
+            // instead of waiting for the "app not responding" timeout.
+            // (The caller treats a writable container as access, because
+            // `hasFullAccess` can be stale right after it's turned on.)
+            guard hasFullAccess() else {
+                show(error: Self.fullAccessRequiredMessage)
+                return
+            }
             feedback.recordingStarted()
             state.lastError = nil
             awaitingStart = true
