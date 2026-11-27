@@ -55,6 +55,7 @@ final class StubTranscriber: Transcribing, @unchecked Sendable {
     private let lock = NSLock()
     var isModelLoaded = true
     var result: Result<String, Error> = .success("um so the raw text")
+    private(set) var loadCount = 0
     private var _prompts: [String?] = []
     private var _framesReceived = 0
     private var _resetCount = 0
@@ -63,7 +64,7 @@ final class StubTranscriber: Transcribing, @unchecked Sendable {
     var framesReceived: Int { lock.withLock { _framesReceived } }
     var resetCount: Int { lock.withLock { _resetCount } }
 
-    func loadModel(at folder: URL) async throws { isModelLoaded = true }
+    func loadModel(at folder: URL) async throws { loadCount += 1; isModelLoaded = true }
     func reset() { lock.withLock { _resetCount += 1; _framesReceived = 0 } }
     func appendAudio(_ buffer: AVAudioPCMBuffer) {
         lock.withLock { _framesReceived += Int(buffer.frameLength) }
@@ -76,6 +77,8 @@ final class StubTranscriber: Transcribing, @unchecked Sendable {
 
 final class StubCleaner: TextCleaning, @unchecked Sendable {
     var isAvailable = true
+    private(set) var prepareCount = 0
+    func prepare() { prepareCount += 1 }
     var transform: (String) throws -> String = { "Cleaned: \($0)" }
     func clean(_ raw: String) async throws -> String { try transform(raw) }
 }

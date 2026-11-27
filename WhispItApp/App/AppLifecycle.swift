@@ -23,10 +23,15 @@ final class AppLifecycle: ObservableObject {
     nonisolated static let onboardingDoneKey = "WhispIt.hasCompletedOnboarding"
 
     private let modelDownload = ModelDownloadService()
-    private let coordinator = DictationPipelineCoordinator.shared
-    private let backgroundAudio = BackgroundAudioSessionManager.shared
+    private let coordinator: DictationPipelineCoordinator
+    private let backgroundAudio: KeepAliveSession
 
-    init() {
+    init(
+        coordinator: DictationPipelineCoordinator = .shared,
+        backgroundAudio: KeepAliveSession = BackgroundAudioSessionManager.shared
+    ) {
+        self.coordinator = coordinator
+        self.backgroundAudio = backgroundAudio
         #if DEBUG
         DebugOverrides.resetStateIfRequested()
         #endif
@@ -88,7 +93,16 @@ final class AppLifecycle: ObservableObject {
         await loadModel(at: url)
     }
 
-    private func loadModel(at url: URL) async {
+    func loadModel(at url: URL) async {
+        // Finishing onboarding shows Home, whose .task calls bootstrapIfReady()
+        // right after onboarding already loaded the model; don't load twice.
+        if bootstrap == .loading { return }
+        if coordinator.isModelLoaded {
+            try? backgroundAudio.start()
+            coordinator.startObserving()
+            bootstrap = .ready
+            return
+        }
         PipelineLog.logger.notice("Loading Whisper model \(url.lastPathComponent, privacy: .public)")
         bootstrap = .loading
         do {

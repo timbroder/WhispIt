@@ -22,8 +22,34 @@ final class CleanupService {
     Output only the cleaned text in the `text` field. No commentary.
     """
 
+    private let lock = NSLock()
+    private var preparedSession: LanguageModelSession?
+
     var isAvailable: Bool {
         SystemLanguageModel.default.availability == .available
+    }
+
+    /// Creates the next dictation's session and prewarms the on-device model.
+    /// The first cleanup after launch took ~8 s cold in the simulator.
+    func prepare() {
+        guard isAvailable else { return }
+        let session = makeSession()
+        session.prewarm()
+        lock.withLock { preparedSession = session }
+    }
+
+    private func makeSession() -> LanguageModelSession {
+        LanguageModelSession(model: SystemLanguageModel.default, instructions: Self.instructions)
+    }
+
+    /// Hands out the prewarmed session once; each dictation gets a fresh one so
+    /// earlier transcripts never leak into the context.
+    private func takeSession() -> LanguageModelSession {
+        let prepared = lock.withLock { () -> LanguageModelSession? in
+            defer { preparedSession = nil }
+            return preparedSession
+        }
+        return prepared ?? makeSession()
     }
 
     func clean(_ raw: String) async throws -> String {
@@ -35,7 +61,7 @@ final class CleanupService {
             throw CleanupError.appleIntelligenceUnavailable(reason)
         }
 
-        let session = LanguageModelSession(model: model, instructions: Self.instructions)
+        let session = takeSession()
         let response = try await session.respond(to: trimmed, generating: CleanedTranscript.self)
         return response.content.text
     }
