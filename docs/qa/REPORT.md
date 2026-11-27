@@ -1,7 +1,7 @@
 # WhispIt — QA Report
 
 **Scope:** end-to-end QA of WhispIt 0.1.0 (main app + keyboard extension) against `WhispIt-Spec.md`, run 2026-11-26/27.
-**Environment:** Xcode 27.2, iOS 27.2 simulators (iPhone 18 Pro, iPhone 17), macOS 27 on an M1 Pro host with Apple Intelligence. The production model `openai_whisper-large-v3-v20240930_turbo` was used in simulator E2E; integration tests use `openai_whisper-base.en`.
+**Environment:** Xcode 27.2, iOS 27.2 simulators (iPhone 18 Pro primary, iPhone 17; layout/accessibility UI tests also on iPhone 17e and iPhone 18 Pro Max, all passing), macOS 27 on an M1 Pro host with Apple Intelligence. The production model `openai_whisper-large-v3-v20240930_turbo` was used in simulator E2E; integration tests use `openai_whisper-base.en`.
 **Plan:** [`TEST_PLAN.md`](TEST_PLAN.md) · **Device follow-up:** [`device-checklist.md`](device-checklist.md)
 
 ## Summary
