@@ -105,6 +105,22 @@ final class IPCManager: IPCChannel {
         return try Self.decoder.decode(type, from: data)
     }
 
+    /// Whether this process can actually write to the App Group container.
+    /// A keyboard needs Allow Full Access for that, but its `hasFullAccess`
+    /// flag can be stale (e.g. right after the user turns it on), so the
+    /// keyboard checks this before telling the user to enable it.
+    func canWriteSharedContainer() -> Bool {
+        guard let url = WhispItConstants.sharedContainerURL?.appendingPathComponent(".access-probe") else {
+            return false
+        }
+        do {
+            try Data().write(to: url, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     func writeText(_ text: String, to file: WhispItConstants.SharedFile) throws {
         guard let url = WhispItConstants.sharedFileURL(file) else {
             throw IPCError.appGroupContainerUnavailable

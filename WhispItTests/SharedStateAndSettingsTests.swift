@@ -86,3 +86,12 @@ final class LockedFlag: @unchecked Sendable {
     var value: Bool { lock.withLock { _value } }
     func set() { lock.withLock { _value = true } }
 }
+
+@Suite("IPCManager container access")
+struct ContainerAccessTests {
+    /// The host app has the App Group entitlement, so the probe succeeds;
+    /// the keyboard relies on this to ignore a stale hasFullAccess flag (H5).
+    @Test func appCanWriteTheSharedContainer() {
+        #expect(IPCManager.shared.canWriteSharedContainer())
+    }
+}

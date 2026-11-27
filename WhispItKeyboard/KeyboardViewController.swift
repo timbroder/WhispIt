@@ -8,6 +8,10 @@ final class KeyboardViewController: UIInputViewController {
         state: state,
         ipc: IPCManager.shared,
         feedback: HapticFeedback(),
+        // The flag alone can be stale; trust a successful container write.
+        hasFullAccess: { [weak self] in
+            (self?.hasFullAccess ?? false) || IPCManager.shared.canWriteSharedContainer()
+        },
         insertText: { [weak self] text in self?.textDocumentProxy.insertText(text) }
     )
 
