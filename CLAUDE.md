@@ -76,6 +76,7 @@ xcodebuild test -project WhispIt.xcodeproj -scheme WhispItApp \
 
 - Tests that reproduce a known, unfixed bug are wrapped in `withKnownIssue("<ID>: …")`. A fix PR removes the wrapper.
 - Speech fixtures live in `WhispItIntegrationTests/Fixtures`; regenerate them with `Scripts/make-audio-fixtures.sh`.
+- Integration tests default to `openai_whisper-base.en`. To run them against the shipping model, prefix the command with `TEST_RUNNER_WHISPIT_INTEGRATION_MODEL=openai_whisper-large-v3-v20240930_turbo_632MB`.
 - Debug-only launch arguments (see `WhispItApp/Services/Debug/DebugOverrides.swift`): `-WhispItAudioFixture <name>` feeds a WAV from `<App Group>/Fixtures/` instead of the mic, `-WhispItModelVariant openai_whisper-tiny` downloads a small model, and `-WhispItResetState` wipes onboarding and dictionary state.
 - Pipeline logs (no transcript text) use the subsystem `com.whispit.app`: `xcrun simctl spawn booted log stream --predicate 'subsystem == "com.whispit.app"'`.
 

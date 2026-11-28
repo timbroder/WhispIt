@@ -122,7 +122,7 @@ final class AppLifecycle: ObservableObject {
             return "The download didn't finish. Check your internet connection and tap Retry."
         }
         if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileWriteOutOfSpaceError {
-            return "There isn't enough free space. WhispIt needs about 1.5 GB for the speech model."
+            return "There isn't enough free space. WhispIt needs about 1 GB of free space for the speech model."
         }
         return "The speech model couldn't be downloaded. Tap Retry to try again."
     }

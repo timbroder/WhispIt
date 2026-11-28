@@ -10,7 +10,7 @@ What the simulator can't prove. Run this on an **iPhone 15 Pro or newer with App
 |---|---|---|---|
 | 1.1 | Fresh install, open WhispIt | Welcome screen. | |
 | 1.2 | Get Started → Allow Microphone | System prompt appears; allowing advances to the model step. | |
-| 1.3 | Download Model on Wi-Fi | Progress bar moves; the size matches the copy ("about 1.5 GB"). Note the actual download time: ____ | |
+| 1.3 | Download Model on Wi-Fi | Progress bar moves; the size matches the copy ("about 630 MB"). Note the actual download time: ____ | |
 | 1.4 | Lock the phone mid-download for 30 s, then unlock | The download continues or recovers with Retry (no crash, no stuck spinner). | |
 | 1.5 | Apple Intelligence step | Shows "available". If not, the message is understandable (not a raw enum name). | |
 | 1.6 | Follow the onboarding keyboard step: Open Settings → Keyboards → turn on WhispIt → Allow Full Access | Open Settings lands on WhispIt's page; the trust prompt text is clear. | |

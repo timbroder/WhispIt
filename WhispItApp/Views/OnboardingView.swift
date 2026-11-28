@@ -111,7 +111,7 @@ struct OnboardingView: View {
                 .foregroundStyle(.tint)
             Text("Download Speech Model")
                 .font(.title).bold()
-            Text("WhispIt downloads its speech model once. It's about 1.5 GB, so make sure you're on Wi-Fi.")
+            Text("WhispIt downloads its speech model once. It's about 630 MB, so make sure you're on Wi-Fi.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 

@@ -27,7 +27,7 @@ struct UserFacingMessageTests {
 
     @Test func fullDiskExplainsSpace() {
         let error = CocoaError(.fileWriteOutOfSpace)
-        #expect(AppLifecycle.userMessage(forDownloadError: error).contains("1.5 GB"))
+        #expect(AppLifecycle.userMessage(forDownloadError: error).contains("1 GB"))
     }
 
     @Test func unknownErrorsStayGeneric() {

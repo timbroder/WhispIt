@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import WhisperKit
 @testable import WhispIt
 
 @Suite("ModelDownloadService storage")
@@ -10,7 +11,7 @@ struct ModelDownloadServiceTests {
         try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup ?? false
     }
 
-    /// Regression (H14): the ~1.5 GB re-downloadable model must not be backed up.
+    /// Regression (H14): the ~630 MB re-downloadable model must not be backed up.
     @Test func downloadBaseIsCreatedAndExcludedFromBackup() throws {
         let base = tempDir.file("models")
         try ModelDownloadService.prepareDownloadBase(base)
@@ -31,5 +32,20 @@ struct ModelDownloadServiceTests {
         let root = try #require(ModelDownloadService.modelsRoot)
         let group = try #require(WhispItConstants.sharedContainerURL)
         #expect(root.path.hasPrefix(group.path))
+    }
+}
+
+@Suite("ModelDownloadService model choice")
+struct ModelVariantTests {
+    /// Regression (WhispIt-4yf): the model onboarding downloads must be one
+    /// Argmax supports on iPhone. Its device table lists the full ~1.5 GB
+    /// large-v3 turbo build only for Macs and M-series iPads; iPhones get the
+    /// compressed 632 MB build of the same model. Covers iPhone 14 Pro,
+    /// 15 Pro and 16 Pro identifiers.
+    @Test(arguments: ["iPhone15,2", "iPhone16,1", "iPhone17,1"])
+    func defaultModelIsSupportedOnIPhone(_ device: String) {
+        let support = Constants.fallbackModelSupportConfig.modelSupport(for: device)
+        #expect(support.supported.contains(ModelDownloadService.defaultVariant),
+                "\(ModelDownloadService.defaultVariant) isn't in WhisperKit's supported list for \(device)")
     }
 }

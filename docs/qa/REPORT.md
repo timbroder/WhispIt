@@ -12,7 +12,7 @@ The keyboard dictation loop did not work at the start of this pass. Three P0 def
 2. The keyboard was never told a recording had started, so it couldn't be stopped (H1).
 3. Any dictionary word made WhisperKit return an empty transcript (H12). Because the app learns words automatically, this broke dictation for everyone after a few uses.
 
-**22 defects** were found. **19 are fixed**, each in its own PR with a regression test that fails on the old code where it could be run. The 3 still open are P3 polish. With the fixes stacked, the full loop works in the simulator with the production model: tap the mic in Safari, speak, get auto-stop or tap-stop, see "Cleaning up…", and the cleaned text is inserted with a success check.
+**23 defects** were found. **20 are fixed**, each in its own PR with a regression test that fails on the old code where it could be run. The 3 still open are P3 polish. With the fixes stacked, the full loop works in the simulator with the production model: tap the mic in Safari, speak, get auto-stop or tap-stop, see "Cleaning up…", and the cleaned text is inserted with a success check.
 
 The project went from **0 tests to 172 tests**: unit, keyboard logic, real-model integration, and XCUITest. CI is added (PR #27).
 
@@ -28,6 +28,7 @@ The project went from **0 tests to 172 tests**: unit, keyboard logic, real-model
 | H3 | P1 | Lifecycle | Keep-alive audio never restarted after interruptions or route changes | Fixed #18 |
 | H14 | P1 | Storage | 1.5 GB model included in iCloud backups (App Review 2.23 risk) | Fixed #21 |
 | U2 | P1 | Onboarding | Keyboard setup steps wrong on iOS 26/27 (Add New Keyboard doesn't list it) | Fixed #22 |
+| M1 | P1 | Model | Shipped the ~1.5 GB Whisper turbo build, which Argmax supports only on Macs and M-series iPads; iPhones get the 632 MB build of the same model (found in a model review after the pass; simulator runs can't show it) | Fixed #29 |
 | H8 | P2 | Data | Corrupt `dictionary.json` overwritten by the next add (data loss) | Fixed #20 |
 | H9 | P2 | Onboarding | Denying the mic left onboarding stuck | Fixed #22 |
 | H11 | P2 | Keyboard | Previous session's error shown every time the keyboard opened | Fixed #14 |
