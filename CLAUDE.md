@@ -76,7 +76,8 @@ xcodebuild test -project WhispIt.xcodeproj -scheme WhispItApp \
 
 - Tests that reproduce a known, unfixed bug are wrapped in `withKnownIssue("<ID>: …")`. A fix PR removes the wrapper.
 - Speech fixtures live in `WhispItIntegrationTests/Fixtures`; regenerate them with `Scripts/make-audio-fixtures.sh`.
-- Debug-only launch arguments (see `WhispItApp/Services/Debug/DebugOverrides.swift`): `-WhispItAudioFixture <name>` feeds a WAV from `<App Group>/Fixtures/` instead of the mic, `-WhispItModelVariant openai_whisper-tiny` downloads a small model, and `-WhispItResetState` wipes onboarding and dictionary state.
+- Debug-only launch arguments (see `WhispItApp/Services/Debug/DebugOverrides.swift`): `-WhispItAudioFixture <name>` feeds a WAV from `<App Group>/Fixtures/` instead of the mic, `-WhispItModelVariant openai_whisper-tiny` downloads a small model, `-WhispItASREngine speech-analyzer` swaps in the SpeechAnalyzer bake-off prototype (`docs/qa/asr-bakeoff.md`), and `-WhispItResetState` wipes onboarding and dictionary state.
+- Speech-engine bake-off suites (`WhispItIntegrationTests/Bakeoff`) are opt-in: pass `TEST_RUNNER_WHISPIT_BAKEOFF=1` to xcodebuild and run one suite per invocation. SpeechAnalyzer doesn't work in the simulator; `Scripts/asr-bakeoff-mac` runs every engine natively on a Mac.
 - Pipeline logs (no transcript text) use the subsystem `com.whispit.app`: `xcrun simctl spawn booted log stream --predicate 'subsystem == "com.whispit.app"'`.
 
 ## Architecture Overview

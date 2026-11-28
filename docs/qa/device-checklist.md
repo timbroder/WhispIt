@@ -83,3 +83,27 @@ What the simulator can't prove. Run this on an **iPhone 15 Pro or newer with App
 |---|---|---|---|
 | 7.1 | Airplane mode after model download, dictate | Works fully offline. | |
 | 7.2 | Settings → Privacy → App Privacy Report | No network activity from WhispIt other than the model download host. | |
+
+## 8. Speech-engine bake-off on device (WhispIt-peu)
+
+The simulator runs every engine on the Mac's CPU (no Neural Engine, no GPU), so the latency and memory numbers in [`asr-bakeoff.md`](asr-bakeoff.md) are indicative only. Re-run the harness on a phone to get real ones. Use a Debug build from Xcode with the phone plugged in and unlocked, on Wi-Fi (about 2 GB of models download on the first run), and run **one engine per command** so each gets a fresh process:
+
+```bash
+for suite in WhisperTurboBakeoff SpeechAnalyzerBakeoff ParakeetV2Bakeoff ParakeetV3Bakeoff; do
+  TEST_RUNNER_WHISPIT_BAKEOFF=1 xcodebuild test -project WhispIt.xcodeproj -scheme WhispItApp \
+    -destination 'platform=iOS,name=<your iPhone>' -allowProvisioningUpdates \
+    -only-testing:WhispItIntegrationTests/$suite 2>&1 | grep -E 'BAKEOFF_|\[bakeoff'
+done
+```
+
+Installing the Debug build replaces a TestFlight install of WhispIt on that phone; reinstall from TestFlight afterwards.
+
+| # | Measure | How | Result |
+|---|---|---|---|
+| 8.1 | Harness results per engine | Paste each `BAKEOFF_RESULT` line into `asr-bakeoff.md` under "On-device results". | |
+| 8.2 | Real stop → text, in the app | Launch the Debug build with `-WhispItASREngine speech-analyzer` and `-WhispItModelVariant openai_whisper-tiny`, then again with no flags (WhisperKit). Dictate the 2.3 sentence 5 times each; stopwatch from tapping stop to text appearing. Parakeet isn't selectable in the app (it's test-only, see `asr-bakeoff.md`); use its harness numbers from 8.1. Times: ____ | |
+| 8.3 | Main-app memory per engine | Xcode → Debug Navigator → Memory, peak while finalizing a 30 s dictation. SpeechAnalyzer's model runs in a system process, so also note the system's memory pressure. | |
+| 8.4 | SpeechAnalyzer offline | With `speech-analyzer` installed once, turn on airplane mode, relaunch, dictate. Expected: works (assets are on device). | |
+| 8.4b | SpeechAnalyzer permission | First `speech-analyzer` dictation on a fresh install. Expected: no speech-recognition prompt (the macOS runner never asked). If iOS prompts or fails with an authorization error, the app needs `NSSpeechRecognitionUsageDescription` before SpeechAnalyzer can ship. | |
+| 8.5 | SpeechAnalyzer first install | On a phone that has never used English dictation, note whether `loadModel` downloads assets and how long it takes (the harness prints `install` in the result's notes). | |
+| 8.6 | Accents and noise | Dictate 2.3 and 2.9 in a noisy room and with a non-US accent per engine; the fixtures are clean synthetic speech, so this is the accuracy check they can't do. | |

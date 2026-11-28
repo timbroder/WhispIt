@@ -24,3 +24,6 @@ WhispIt.xcodeproj/
 *.xcarchive
 *.dSYM.zip
 *.dSYM
+
+# SwiftPM build output (Scripts/asr-bakeoff-mac)
+.build/

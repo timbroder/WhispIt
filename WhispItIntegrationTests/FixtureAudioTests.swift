@@ -5,7 +5,7 @@ import Testing
 
 enum Fixture: String, CaseIterable {
     case fillers, properNouns = "proper-nouns", selfCorrection = "self-correction"
-    case silence, pause, longPassage = "long-passage"
+    case silence, pause, longPassage = "long-passage", names
 
     var url: URL {
         get throws {

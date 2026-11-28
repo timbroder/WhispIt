@@ -5,6 +5,7 @@ import Foundation
 ///
 ///     -WhispItAudioFixture <name|path>   feed a WAV file instead of the mic
 ///     -WhispItModelVariant <variant>     download a smaller WhisperKit model
+///     -WhispItASREngine <engine>         use another speech engine (see ASREngine)
 ///     -WhispItResetState                 wipe onboarding, dictionary and shared files
 ///     -WhispItSkipBootstrap              don't load the model or start audio on Home
 ///
@@ -29,6 +30,11 @@ enum DebugOverrides {
 
     static var modelVariant: String? {
         defaults.string(forKey: "WhispItModelVariant")
+    }
+
+    /// Speech-engine bake-off (WhispIt-peu): swap WhisperKit for a prototype.
+    static var asrEngine: ASREngine? {
+        defaults.string(forKey: "WhispItASREngine").flatMap(ASREngine.init(rawValue:))
     }
 
     /// UI tests of screens that don't need the model skip loading it (and the

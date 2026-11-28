@@ -13,6 +13,12 @@ packages:
   WhisperKit:
     url: https://github.com/argmaxinc/WhisperKit
     from: "0.9.4"
+  # Speech-engine bake-off (WhispIt-peu): the Parakeet TDT prototype. Linked
+  # into WhispItIntegrationTests only: in the app it adds ~30 MB to Release
+  # builds even when only DEBUG code uses it.
+  FluidAudio:
+    url: https://github.com/FluidInference/FluidAudio
+    minorVersion: "0.18.4"
 
 settings:
   base:
@@ -96,6 +102,8 @@ targets:
       - path: WhispItIntegrationTests
     dependencies:
       - target: WhispItApp
+      - package: FluidAudio
+        product: FluidAudio
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.whispit.app.integrationtests
