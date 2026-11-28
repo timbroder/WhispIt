@@ -30,14 +30,21 @@ COMMON=(-project WhispIt.xcodeproj -scheme WhispItApp -destination "id=$UDID" -d
 
 command -v xcodegen >/dev/null && xcodegen generate --quiet
 
+# Boot the simulator now so it finishes booting during the build. When the
+# tests launched it cold, the first real AVAudioEngine start (in
+# BackgroundAudioSessionManagerTests) came seconds after boot and deadlocked
+# the simulator's audio server ("Cleanup: RPC timeout. Apparently
+# deadlocked. Aborting now."), killing the test host.
+xcrun simctl boot "$UDID" 2>/dev/null || true
+
 xcodebuild build-for-testing "${COMMON[@]}" -skipPackagePluginValidation -skipMacroValidation \
   "${SIGNING[@]}" -quiet
 
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+
 # Unit + keyboard logic: hermetic, except BackgroundAudioSessionManagerTests,
-# which start a real AVAudioEngine. On hosted runners the simulator's audio
-# server sometimes deadlocks on the first engine starts ("Cleanup: RPC
-# timeout. Apparently deadlocked. Aborting now.") and kills the test host.
-# A retry in a fresh process gets past it; a real failure fails both times.
+# which start a real AVAudioEngine (see the boot step above). Failed tests
+# get a second attempt; a crashed Swift Testing test is not retried.
 xcodebuild test-without-building "${COMMON[@]}" \
   -only-testing:WhispItTests -only-testing:WhispItKeyboardTests \
   -retry-tests-on-failure -test-iterations 2 \
