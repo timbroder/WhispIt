@@ -129,4 +129,35 @@ struct DictionaryPromptBuilderTests {
         #expect(words.count == 50)
         #expect(words.first == "Word79")
     }
+
+    /// Engines that take a word list (the bake-off prototypes) get the same
+    /// words, in the same order, as Whisper's prompt.
+    @Test func wordListMatchesThePrompt() {
+        let entries = [entry("Rare", 1), entry("Common", 9), entry("Mid", 4)]
+        #expect(DictionaryPromptBuilder.words(from: entries) == ["Common", "Mid", "Rare"])
+        #expect(DictionaryPromptBuilder.words(from: entries, maxWords: 2) == ["Common", "Mid"])
+        #expect(DictionaryPromptBuilder.words(from: []).isEmpty)
+    }
 }
+
+#if DEBUG
+@Suite("ASREngine debug override")
+struct ASREngineTests {
+    @Test func everyEngineBuildsATranscriber() {
+        #expect(ASREngine.whisper.makeTranscriber() is TranscriptionService)
+        #expect(ASREngine.speechAnalyzer.makeTranscriber() is SpeechAnalyzerTranscriber)
+        #expect((ASREngine.speechAnalyzerBatch.makeTranscriber() as? SpeechAnalyzerTranscriber)?.mode == .batch)
+    }
+
+    @Test(arguments: ASREngine.allCases)
+    func prototypesStartUnloaded(_ engine: ASREngine) {
+        #expect(!engine.makeTranscriber().isModelLoaded)
+    }
+
+    /// Without the launch argument the shipping engine is used.
+    @Test func defaultIsWhisperKit() {
+        #expect(DebugOverrides.asrEngine == nil)
+        #expect(DictationPipelineCoordinator.makeTranscriber() is TranscriptionService)
+    }
+}
+#endif

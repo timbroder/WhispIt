@@ -29,7 +29,7 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
 
     init(
         audioCapture: AudioCaptureService = AudioCaptureService(),
-        transcription: Transcribing = TranscriptionService(),
+        transcription: Transcribing = DictationPipelineCoordinator.makeTranscriber(),
         cleanup: TextCleaning = CleanupService(),
         dictionary: DictionaryManager = .shared,
         learning: DictionaryLearningService? = nil,
@@ -48,6 +48,17 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
         self.ipc = ipc
         self.makeDetector = makeDetector
         self.vad = makeDetector()
+    }
+
+    /// WhisperKit, unless a debug build asks for a bake-off prototype.
+    static func makeTranscriber() -> Transcribing {
+        #if DEBUG
+        if let engine = DebugOverrides.asrEngine {
+            PipelineLog.logger.notice("Speech engine override: \(engine.rawValue, privacy: .public)")
+            return engine.makeTranscriber()
+        }
+        #endif
+        return TranscriptionService()
     }
 
     var isModelLoaded: Bool { transcription.isModelLoaded }

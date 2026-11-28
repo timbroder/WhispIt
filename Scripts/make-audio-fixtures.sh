@@ -21,6 +21,10 @@ make() {
 make fillers "Um, so, basically I think we should, uh, ship the new build on Friday, you know."
 # Proper nouns for dictionary-bias tests.
 make proper-nouns "Please send the Kubernetes report to Anthropic and Priyanka by Thursday."
+# Rare names and brand words for the speech-engine bake-off's dictionary
+# biasing test (WhispIt-peu). "twist of lime" is a decoy that biasing towards
+# "Tuist" must not rewrite.
+make names "Ask Siobhan and Saoirse to send the Tuist config to Nguyen, and add a twist of lime for the WhispIt demo."
 # Self-correction: cleanup should keep only "four o'clock".
 make self-correction "Let's meet at three, no wait, let's meet at four o'clock tomorrow."
 # Five seconds of silence: must not insert hallucinated text.
