@@ -23,7 +23,7 @@ struct AppLifecycleTests {
     }
 
     /// Regression (H7): finishing onboarding showed Home, whose .task loaded
-    /// the 1.5 GB model a second time.
+    /// the speech model a second time.
     @Test func secondLoadIsSkipped() async {
         harness.transcriber.isModelLoaded = false
         let lifecycle = makeLifecycle()

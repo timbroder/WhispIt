@@ -7,7 +7,10 @@ final class ModelDownloadService {
         case alreadyDownloading
     }
 
-    static let defaultVariant = "openai_whisper-large-v3-v20240930_turbo"
+    /// Whisper large-v3 turbo, compressed build. Argmax supports the full
+    /// ~1.5 GB build only on Macs and M-series iPads; on iPhone it lists this
+    /// 632 MB build (WhisperKit `Constants.fallbackModelSupportConfig`).
+    static let defaultVariant = "openai_whisper-large-v3-v20240930_turbo_632MB"
 
     /// The variant onboarding downloads. Debug builds can swap in a small
     /// model with `-WhispItModelVariant openai_whisper-tiny`.
@@ -29,7 +32,7 @@ final class ModelDownloadService {
     }
 
     /// Creates the models directory and excludes it from iCloud/device
-    /// backups: the model is re-downloadable and ~1.5 GB (App Store
+    /// backups: the model is re-downloadable and ~630 MB (App Store
     /// guideline 2.23, iOS Data Storage Guidelines).
     static func prepareDownloadBase(_ url: URL) throws {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

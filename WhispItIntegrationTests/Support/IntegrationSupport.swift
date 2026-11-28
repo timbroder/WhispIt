@@ -3,12 +3,15 @@ import Foundation
 import Testing
 @testable import WhispIt
 
-/// Downloads (once) and loads a small WhisperKit model for the whole test run.
-/// The production app uses large-v3 turbo; integration tests use base.en so a
-/// run takes minutes, not an hour, while still exercising the real pipeline.
+/// Downloads (once) and loads a WhisperKit model for the whole test run.
+/// The production app uses large-v3 turbo (632 MB build); integration tests
+/// default to base.en so a run takes minutes, not an hour, while still
+/// exercising the real pipeline. To run against another model:
+/// `TEST_RUNNER_WHISPIT_INTEGRATION_MODEL=<variant> xcodebuild test …`
 actor ModelStore {
     static let shared = ModelStore()
-    static let variant = "openai_whisper-base.en"
+    static let variant = ProcessInfo.processInfo.environment["WHISPIT_INTEGRATION_MODEL"]
+        .flatMap { $0.isEmpty ? nil : $0 } ?? "openai_whisper-base.en"
 
     private var transcriber: TranscriptionService?
     private var folder: URL?
