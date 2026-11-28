@@ -87,6 +87,12 @@ final class DictationPipelineCoordinator: @unchecked Sendable {
         queue.sync {}
     }
 
+    /// Test hook: true while a recording or its finalize is in progress, i.e.
+    /// a new start request would be re-announced or ignored.
+    var isBusy: Bool {
+        queue.sync { isRecording || isFinalizing }
+    }
+
     private func handleStartRequested() {
         if isRecording {
             // The keyboard lost track (e.g. it was reloaded mid-recording).

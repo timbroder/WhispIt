@@ -346,10 +346,11 @@ extension PipelineHarness {
                 $0 == Note.cleanedTextReady as String || $0 == Note.recordingFailed as String
             }.count > before
         }
-        // isFinalizing is cleared on the queue right after the post.
-        try? await Task.sleep(for: .milliseconds(50))
-        coordinator.drainQueue()
-        return gotResult
+        // isFinalizing is cleared on the pipeline queue once finalize returns,
+        // which can lag the result post on a loaded CI runner. Wait for it
+        // rather than sleeping a fixed time, or the next start is ignored.
+        let idle = await waitUntil(timeout: .seconds(3)) { !coordinator.isBusy }
+        return gotResult && idle
     }
 }
 
