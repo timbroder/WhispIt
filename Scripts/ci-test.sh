@@ -33,9 +33,14 @@ command -v xcodegen >/dev/null && xcodegen generate --quiet
 xcodebuild build-for-testing "${COMMON[@]}" -skipPackagePluginValidation -skipMacroValidation \
   "${SIGNING[@]}" -quiet
 
-# Unit + keyboard logic: hermetic.
+# Unit + keyboard logic: hermetic, except BackgroundAudioSessionManagerTests,
+# which start a real AVAudioEngine. On hosted runners the simulator's audio
+# server sometimes deadlocks on the first engine starts ("Cleanup: RPC
+# timeout. Apparently deadlocked. Aborting now.") and kills the test host.
+# A retry in a fresh process gets past it; a real failure fails both times.
 xcodebuild test-without-building "${COMMON[@]}" \
   -only-testing:WhispItTests -only-testing:WhispItKeyboardTests \
+  -retry-tests-on-failure -test-iterations 2 \
   -resultBundlePath "$OUT/unit.xcresult" "${SIGNING[@]}"
 
 # UI tests. Full onboarding downloads a model and needs a simulator mic, so
