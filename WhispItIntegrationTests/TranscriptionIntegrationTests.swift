@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import WhispIt
 
-@Suite("WhisperKit transcription (base.en)", .serialized, .timeLimit(.minutes(15)))
+@Suite("WhisperKit transcription", .serialized, .timeLimit(.minutes(15)))
 struct TranscriptionIntegrationTests {
     func transcribe(_ fixture: Fixture, prompt: String? = nil) async throws -> String {
         let transcriber = try await ModelStore.shared.loadedTranscriber()
@@ -60,18 +60,25 @@ struct TranscriptionIntegrationTests {
         #expect(!Transcript.contains(biased, "vocabulary"), "prompt text leaked into the transcript")
     }
 
-    /// Regression (H6): Whisper emits markers like "[BLANK_AUDIO]" for silence.
-    @Test func silenceProducesNoWords() async throws {
+    /// Regression (H6): Whisper emits markers like "[BLANK_AUDIO]" for silence,
+    /// which must never reach the text field. Larger models hallucinate a
+    /// short phrase instead ("Thank you."); the pipeline discards no-voice
+    /// transcripts up to `DictationPipelineCoordinator.maxHallucinationWords`
+    /// (covered end to end by `silentRecordingInsertsNothing`).
+    @Test func silenceProducesNoMarkersAndAtMostAShortPhrase() async throws {
         let text = try await transcribe(.silence)
         print("[silence] \"\(text)\"")
-        #expect(text.isEmpty, "got \"\(text)\"")
+        #expect(!text.contains("[") && !text.contains("("), "non-speech marker leaked: \"\(text)\"")
+        #expect(Transcript.words(text).count <= DictationPipelineCoordinator.maxHallucinationWords, "got \"\(text)\"")
     }
 
-    @Test func silenceWithDictionaryPromptProducesNoWords() async throws {
+    @Test func silenceWithDictionaryPromptProducesAtMostAShortPhrase() async throws {
         let prompt = DictionaryPromptBuilder.prompt(from: [DictionaryEntry(word: "Kubernetes", source: .manual)])
         let text = try await transcribe(.silence, prompt: prompt)
         print("[silence+prompt] \"\(text)\"")
-        #expect(text.isEmpty, "got \"\(text)\"")
+        #expect(!text.contains("[") && !text.contains("("), "non-speech marker leaked: \"\(text)\"")
+        #expect(Transcript.words(text).count <= DictationPipelineCoordinator.maxHallucinationWords, "got \"\(text)\"")
+        #expect(!Transcript.contains(text, "kubernetes"), "prompt words leaked into silence")
     }
 
     /// Regression (H12): with a dictionary, ordinary speech still transcribes.

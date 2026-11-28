@@ -12,7 +12,7 @@ The keyboard dictation loop did not work at the start of this pass. Three P0 def
 2. The keyboard was never told a recording had started, so it couldn't be stopped (H1).
 3. Any dictionary word made WhisperKit return an empty transcript (H12). Because the app learns words automatically, this broke dictation for everyone after a few uses.
 
-**23 defects** were found. **20 are fixed**, each in its own PR with a regression test that fails on the old code where it could be run. The 3 still open are P3 polish. With the fixes stacked, the full loop works in the simulator with the production model: tap the mic in Safari, speak, get auto-stop or tap-stop, see "Cleaning up…", and the cleaned text is inserted with a success check.
+**24 defects** were found. **21 are fixed**, each in its own PR with a regression test that fails on the old code where it could be run. The 3 still open are P3 polish. With the fixes stacked, the full loop works in the simulator with the production model: tap the mic in Safari, speak, get auto-stop or tap-stop, see "Cleaning up…", and the cleaned text is inserted with a success check.
 
 The project went from **0 tests to 172 tests**: unit, keyboard logic, real-model integration, and XCUITest. CI is added (PR #27).
 
@@ -23,6 +23,7 @@ The project went from **0 tests to 172 tests**: unit, keyboard logic, real-model
 | H2 | P0 | Audio | Converter returned `.endOfStream` per buffer → 341 of ~34,133 frames kept; VAD never saw silence | Fixed #13 |
 | H1 | P0 | IPC | No notification that recording started; keyboard couldn't stop a recording | Fixed #14 |
 | H12 | P0 | Transcription | Any dictionary prompt → empty transcript (WhisperKit first-token check) | Fixed #16 |
+| H12b | P0 | Transcription | The H12 fix held only for base.en. On the shipping large-v3 turbo model, WhisperKit 0.18 ended every prompted decode before its first word, so any dictionary word blanked dictation (argmax-oss-swift#501, fixed in SDK 1.1.0) | Fixed #30 |
 | H4 | P1 | IPC | No feedback when the app isn't running or the model isn't loaded | Fixed #14 |
 | H6 | P1 | Pipeline | Silent recording inserted literal `[BLANK_AUDIO]` into the user's text field | Fixed #17 |
 | H3 | P1 | Lifecycle | Keep-alive audio never restarted after interruptions or route changes | Fixed #18 |

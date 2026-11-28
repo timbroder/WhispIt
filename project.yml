@@ -10,9 +10,12 @@ options:
   xcodeVersion: "26.3"
 
 packages:
-  WhisperKit:
-    url: https://github.com/argmaxinc/WhisperKit
-    from: "0.9.4"
+  # WhisperKit ships in the Argmax Open-Source SDK (renamed from the
+  # WhisperKit repo in 1.0.0). 1.1.0+ fixes empty transcripts when
+  # promptTokens are set (argmax-oss-swift#501), which the dictionary needs.
+  ArgmaxOSS:
+    url: https://github.com/argmaxinc/argmax-oss-swift
+    from: "1.1.1"
 
 settings:
   base:
@@ -44,7 +47,7 @@ targets:
         ENABLE_PREVIEWS: YES
     dependencies:
       - target: WhispItKeyboard
-      - package: WhisperKit
+      - package: ArgmaxOSS
         product: WhisperKit
     scheme:
       testTargets:
